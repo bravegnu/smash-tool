@@ -44,7 +44,7 @@ setup(name = "smash",
       license = "GPLv3",
       url = "http://www.zilogic.com/smash/",
       packages = ['smashlib', 'smashlib.resources'],
-      scripts = ["smash"],
+      scripts = ["smash", "smash-gui"],
       long_description = """
 Smash is an 8051 microcontroller In-System Programming (ISP) tool, for
 Philips and NXP microcontrollers.
