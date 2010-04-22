@@ -1,0 +1,18 @@
+Minor Tasks:
+
+  * Calulate the progress bar width from COLWIDTH environment variable.
+  * Add eavesdrop functionality to command line interface.
+  * Add a no-verify option for the command line interface.
+
+Major Tasks:
+
+  * Make command line interface more powerful. Command line interface
+    should have the following sub-commands.
+    - prog
+    - erase
+    - dump
+	
+Bugs:
+
+ * When an operation is in progress (say dump or program) another
+   operation should not be started.

@@ -1,0 +1,2 @@
+include smash README rpinit.py
+recursive-include smashlib/resources *
