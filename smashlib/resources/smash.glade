@@ -417,7 +417,7 @@
 		    <widget class="GtkCheckButton" id="erase_blocks_check">
 		      <property name="visible">True</property>
 		      <property name="can_focus">True</property>
-		      <property name="label" translatable="yes">Erase blocks used in Hex File.</property>
+		      <property name="label" translatable="yes">Erase blocks used in Hex file</property>
 		      <property name="use_underline">True</property>
 		      <property name="relief">GTK_RELIEF_NORMAL</property>
 		      <property name="focus_on_click">True</property>
@@ -1905,6 +1905,7 @@ using RTS/DTR toggling</property>
   <property name="modal">True</property>
   <property name="resizable">True</property>
   <property name="destroy_with_parent">False</property>
+  <property name="icon_name">gtk-dialog-error</property>
   <property name="decorated">True</property>
   <property name="skip_taskbar_hint">False</property>
   <property name="skip_pager_hint">False</property>
@@ -2089,7 +2090,7 @@ using RTS/DTR toggling</property>
   <property name="visible">True</property>
   <property name="destroy_with_parent">False</property>
   <property name="name" translatable="yes">Smash</property>
-  <property name="copyright" translatable="yes">(C) 2008, 2009 Zilogic Systems</property>
+  <property name="copyright" translatable="yes">(C) 2008, 2009, 2010 Zilogic Systems</property>
   <property name="comments" translatable="yes">Smash is an 8051 microcontroller In-System Programming (ISP) tool, for Philips and NXP microcontrollers.</property>
   <property name="license" translatable="yes">                    GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007

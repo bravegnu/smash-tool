@@ -1881,10 +1881,29 @@ class GuiApp(sobject):
         self.gmap.exc_dialog.hide()
         self.gmap.exc_dialog.set_transient_for(self.gmap.main_win)
 
+        # Create logo pixbuf from SVG
+        # pixbuf = gtk.gdk.pixbuf_new_from_file("icons/logo.svg")
+        from smashlib.resources import logo_svg
+        logo_dname = tempfile.mkdtemp()
+        logo_fname = os.path.join(logo_dname, "logo.svg")
+        pixbuf = None
+        try:
+            file(logo_fname, "w").write(logo_svg.data)
+            pixbuf = gtk.gdk.pixbuf_new_from_file(logo_fname)
+        except Exception, e:
+            pass
+        os.remove(logo_fname)
+        os.rmdir(logo_dname)
+        
+        # Initialize main dialog
+        self.gmap.main_win.set_icon(pixbuf)
+                
         # Initialize about dialog
         self.gmap.aboutdialog.hide()
         self.gmap.aboutdialog.set_transient_for(self.gmap.main_win)
         self.gmap.aboutdialog.set_version(__version__)
+        self.gmap.aboutdialog.set_logo(pixbuf)
+        self.gmap.aboutdialog.set_icon(pixbuf)
 
         # Initialize configuration widgets
         self.micro_combo = ConfigCombo(self.gmap.type_combo, self.gmap,
@@ -1898,6 +1917,7 @@ class GuiApp(sobject):
                     self.conf, "auto-isp")
 
         self.init_hex_fdialog_filters()
+        self.used_blocks = []
 
         # Initialize erase block list
         micro_default = self.conf["type"]
@@ -1969,6 +1989,7 @@ class GuiApp(sobject):
                            "lineno %(lineno)d: %(msg)s", e)
             return
         self.erase_list.select_blocks(blocks)
+        self.used_blocks = blocks
 
     def update_program_pbar(self, frac):
         """Set the program progress bar to specified fraction.
@@ -2092,7 +2113,10 @@ class GuiApp(sobject):
             self.gerror("Hex file not selected")
             return
 
-        block_list = self.erase_list.get_selected_blocks()
+        if self.gmap.erase_blocks_check.get_active():
+            block_list = self.used_blocks
+        else:
+            block_list = self.erase_list.get_selected_blocks()
 
         serial = self.serial_setup()
         if serial == None:
