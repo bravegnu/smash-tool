@@ -2816,7 +2816,7 @@ def init_opt_parser(conf):
 """
 Supported micro-controllers: %(micros)s
 
-Example: %(prog)s /dev/ttyUSB0 myfile.hex""" \
+Example: %(prog)s --prog=myfile.hex /dev/ttyUSB0""" \
     % { "prog": os.path.basename(sys.argv[0]),
         "micros": ", ".join(conf.get_allowed("type")) }
         
