@@ -2339,7 +2339,8 @@ class GuiApp(sobject):
         self.gmap.notebook.set_current_page(4)
 
     def show_help(self):
-        webbrowser.open("http://code.google.com/p/smash-tool/wiki/Help")
+        url = "http://code.google.com/p/smash-tool/wiki/Help?show=content"
+        webbrowser.open(url)
 
     @catch
     def on_help_tlb_clicked(self, *args):
