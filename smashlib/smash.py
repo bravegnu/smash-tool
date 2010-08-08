@@ -2339,18 +2339,7 @@ class GuiApp(sobject):
         self.gmap.notebook.set_current_page(4)
 
     def show_help(self):
-        help_dname = tempfile.mkdtemp()
-        help_fname = os.path.join(help_dname, "help.html")
-        
-        f = file(help_fname, "w")
-        from smashlib.resources import help_html
-        f.write(help_html.data)
-        f.close()
-
-        atexit.register(os.rmdir, help_dname)
-        atexit.register(os.remove, help_fname)
-
-        webbrowser.open("file://" + help_fname)
+        webbrowser.open("http://code.google.com/p/smash-tool/wiki/Help")
 
     @catch
     def on_help_tlb_clicked(self, *args):
