@@ -101,10 +101,9 @@ micro_info = {
     "soft_fc": False,
     "hard_fc": False,
     },
-    "89C51RD2" : {
+    "P89V51RD2" : {
     "mfg": "Philips",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF),
-                    (0x8000, 0xBFFF), (0xC000, 0xFFFF)),
+    "block_range": ((0x0, 0xFFFF),),
     "data_bits": 8,
     "parity": False,
     "odd_parity": False,
@@ -112,9 +111,9 @@ micro_info = {
     "soft_fc": False,
     "hard_fc": False,
     },
-    "89C51RC2" : {
+    "P89V51RC2" : {
     "mfg": "Philips",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF)),
+    "block_range": ((0x0, 0xEFFF),),
     "data_bits": 8,
     "parity": False,
     "odd_parity": False,
@@ -122,9 +121,9 @@ micro_info = {
     "soft_fc": False,
     "hard_fc": False,
     }, 
-    "89C51RB2" : {
+    "P89V51RB2" : {
     "mfg": "Philips",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF)),
+    "block_range": ((0x0, 0x3FFF),),
     "data_bits": 8,
     "parity": False,
     "odd_parity": False,
@@ -135,6 +134,7 @@ micro_info = {
 }
 
 config_filename = os.path.expanduser("~/.smashrc")
+cfname = config_filename
 
 # Class Hierarchy:
 #
@@ -426,6 +426,13 @@ class HexEraseBlock(Hex):
             raise ValueError("block address 0x%x out of range" % block)
         
         cmd = ":0200000301%02x" % block
+        self.hex = self.append_checksum(cmd)
+
+class HexEraseBlockRx2(Hex):
+    def __init__(self):
+        """Create an erase block command.
+        """
+        cmd = ":0100000301"
         self.hex = self.append_checksum(cmd)
 
 class HexEraseBootVecStatus(Hex):
@@ -958,42 +965,6 @@ class Micro(object):
         self.proto_stats = 0
         self.proge_stats = 0
 
-    def _set_reset(self, val):
-        """Set/clear the reset line.
-
-        Raises:
-        OSError, IOError -- if setting the RESET line fails.
-        """
-        self.serial.set_dtr(val)
-
-    def _set_psen(self, val):
-        """Set/clear the reset line.
-
-        Raises:
-        OSError, IOError -- if setting the PSEN line fails.
-        """
-        self.serial.set_rts(val)
-
-    def reset(self, isp):
-        """Reset the micro-controller.
-
-        If isp is set, the micro-controller is switched into ISP mode.
-
-        Raises:
-        OSError, IOError -- if toggling RESET and PSEN line fails
-        """
-        if isp == 1:
-            self._set_reset(1)
-            self._set_psen(1)
-            time.sleep(0.25)
-            self._set_reset(0)
-            time.sleep(0.25)
-            self._set_psen(0)
-        else:
-            self._set_reset(1)
-            time.sleep(0.25)
-            self._set_reset(0)
-
     def retry(self, tries, func, args):
         ex = None
         while tries > 0:
@@ -1058,116 +1029,6 @@ class Micro(object):
         
     def _send_cmd(self, cmd, timeo=None):
         self.retry(8, self.__send_cmd, (cmd, timeo))
-
-    def set_osc_freq(self):
-        """Set the oscillator frequency in the micro.
-
-        Raises:
-        ValueError -- if frequency is invalid.
-        OSError, IOError -- if reading from/writing to serial device fails.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.
-        """
-        cmd = HexOscFreq(self.freq)
-        self._send_cmd(cmd)
-
-    def _read_info(self, info):
-        cmd = HexReadInfo(info)
-        self.serial.write(cmd)
-
-        self.serial.wait_for(":")
-        self.serial.read_timeo(len(cmd.hex) - 1)
-        
-        data = self.serial.read_timeo(3)
-        if len(data) != 3:
-            raise IspTimeoutError("timed out reading info bytes")
-        
-        try:
-            return int(data[-3:-1], 16)
-        except ValueError, e:
-            raise ProtoError("invalid info string")
-
-    def read_info(self, info):
-        """Read micro-controller information. (and discard).
-
-        Raises:
-        OSError, IOError -- if reading from/writing to serial device fails.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.
-        ProtoError -- if invalid data lines are read from micro.        
-        """
-        return self.retry(8, self._read_info, (info,))
-
-    def read_sec(self):
-        data = self.read_info(HexReadInfo.SEC_BITS)
-        return [bool(data & 0x2), bool(data & 0x4), bool(data & 0x8)]
-
-    def read_clock6(self):
-        data = self.read_info(HexReadInfo.CLOCK_6x)
-        return bool(data)
-        
-    def _block_to_hex(self, block):
-        """Returns the byte used in hex commands to denote a block.
-
-        Args:
-        block -- the index of the block
-        """
-        mi = micro_info[self.micro]
-        brange = mi["block_range"][block]
-        bstart = brange[0]
-        return (bstart >> 8) & 0xFF
-
-    def erase_block(self, block):
-        """Erase the block specified.
-
-        Args:
-        block -- the index of the block to be erased.
-
-        Raises:
-        OSError, IOError -- if reading from/writing to serial device fails.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.        
-        """
-        try:
-            bhex = self._block_to_hex(block)
-        except IndexError, e:
-            raise ValueError("invalid erase block")
-        cmd = HexEraseBlock(bhex)
-
-        # Some crazy micro-controllers take as much as 30 seconds to
-        # erase a block.
-        self._send_cmd(cmd, 5)
-
-    def erase_status_boot_vector(self):
-        cmd = HexEraseBootVecStatus()
-        self._send_cmd(cmd)
-
-    def erase_chip(self):
-        cmd = HexChipErase()
-        self._send_cmd(cmd)
-
-    def prog_status(self):
-        cmd = HexProgStatus()
-        self._send_cmd(cmd)
-
-    def prog_boot_vector(self, addr):
-        cmd = HexProgVec(addr)
-        self._send_cmd(cmd)
-
-    def prog_clock6(self):
-        cmd = HexProg6Clock()
-        self._send_cmd(cmd)
-
-    def prog_sec(self, w=False, r=False, x=False):
-        if w:
-            cmd = HexProgSecBit(HexProgSecBit.W)
-            self._send_cmd(cmd)            
-        if r:
-            cmd = HexProgSecBit(HexProgSecBit.R)
-            self._send_cmd(cmd)            
-        if x:
-            cmd = HexProgSecBit(HexProgSecBit.X)
-            self._send_cmd(cmd)            
 
     def prog_file(self, fname, complete_func=None):
         """Program the specified file into the micro.
@@ -1306,6 +1167,207 @@ class Micro(object):
         """
         return self.retry(8, self._getitem, (addr,))
 
+class P89V66x(Micro):
+    def _set_reset(self, val):
+        """Set/clear the reset line.
+
+        Raises:
+        OSError, IOError -- if setting the RESET line fails.
+        """
+        self.serial.set_dtr(val)
+
+    def _set_psen(self, val):
+        """Set/clear the reset line.
+
+        Raises:
+        OSError, IOError -- if setting the PSEN line fails.
+        """
+        self.serial.set_rts(val)
+
+    def reset(self, isp):
+        """Reset the micro-controller.
+
+        If isp is set, the micro-controller is switched into ISP mode.
+
+        Raises:
+        OSError, IOError -- if toggling RESET and PSEN line fails
+        """
+        if isp == 1:
+            self._set_reset(1)
+            self._set_psen(1)
+            time.sleep(0.25)
+            self._set_reset(0)
+            time.sleep(0.25)
+            self._set_psen(0)
+        else:
+            self._set_reset(1)
+            time.sleep(0.25)
+            self._set_reset(0)
+
+    def set_osc_freq(self):
+        """Set the oscillator frequency in the micro.
+
+        Raises:
+        ValueError -- if frequency is invalid.
+        OSError, IOError -- if reading from/writing to serial device fails.
+        IspTimeoutError -- if no response for command from micro.
+        IspChecksumError -- if checksum error occured during communication.
+        """
+        cmd = HexOscFreq(self.freq)
+        self._send_cmd(cmd)
+
+    def _read_info(self, info):
+        cmd = HexReadInfo(info)
+        self.serial.write(cmd)
+
+        self.serial.wait_for(":")
+        self.serial.read_timeo(len(cmd.hex) - 1)
+        
+        data = self.serial.read_timeo(3)
+        if len(data) != 3:
+            raise IspTimeoutError("timed out reading info bytes")
+        
+        try:
+            return int(data[-3:-1], 16)
+        except ValueError, e:
+            raise ProtoError("invalid info string")
+
+    def read_info(self, info):
+        """Read micro-controller information. (and discard).
+
+        Raises:
+        OSError, IOError -- if reading from/writing to serial device fails.
+        IspTimeoutError -- if no response for command from micro.
+        IspChecksumError -- if checksum error occured during communication.
+        ProtoError -- if invalid data lines are read from micro.        
+        """
+        return self.retry(8, self._read_info, (info,))
+
+    def read_sec(self):
+        data = self.read_info(HexReadInfo.SEC_BITS)
+        return [bool(data & 0x2), bool(data & 0x4), bool(data & 0x8)]
+
+    def read_clock6(self):
+        data = self.read_info(HexReadInfo.CLOCK_6x)
+        return bool(data)
+        
+    def _block_to_hex(self, block):
+        """Returns the byte used in hex commands to denote a block.
+
+        Args:
+        block -- the index of the block
+        """
+        mi = micro_info[self.micro]
+        brange = mi["block_range"][block]
+        bstart = brange[0]
+        return (bstart >> 8) & 0xFF
+
+    def erase_block(self, block):
+        """Erase the block specified.
+
+        Args:
+        block -- the index of the block to be erased.
+
+        Raises:
+        OSError, IOError -- if reading from/writing to serial device fails.
+        IspTimeoutError -- if no response for command from micro.
+        IspChecksumError -- if checksum error occured during communication.        
+        """
+        try:
+            bhex = self._block_to_hex(block)
+        except IndexError, e:
+            raise ValueError("invalid erase block")
+        cmd = HexEraseBlock(bhex)
+
+        # Some crazy micro-controllers take as much as 30 seconds to
+        # erase a block.
+        self._send_cmd(cmd, 5)
+
+    def erase_status_boot_vector(self):
+        cmd = HexEraseBootVecStatus()
+        self._send_cmd(cmd)
+
+    def erase_chip(self):
+        cmd = HexChipErase()
+        self._send_cmd(cmd)
+
+    def prog_status(self):
+        cmd = HexProgStatus()
+        self._send_cmd(cmd)
+
+    def prog_boot_vector(self, addr):
+        cmd = HexProgVec(addr)
+        self._send_cmd(cmd)
+
+    def prog_clock6(self):
+        cmd = HexProg6Clock()
+        self._send_cmd(cmd)
+
+    def prog_sec(self, w=False, r=False, x=False):
+        if w:
+            cmd = HexProgSecBit(HexProgSecBit.W)
+            self._send_cmd(cmd)            
+        if r:
+            cmd = HexProgSecBit(HexProgSecBit.R)
+            self._send_cmd(cmd)            
+        if x:
+            cmd = HexProgSecBit(HexProgSecBit.X)
+            self._send_cmd(cmd)
+
+class P89V51Rx2(Micro):
+    def _set_reset(self, val):
+        """Set/clear the reset line.
+
+        Raises:
+        OSError, IOError -- if setting the RESET line fails.
+        """
+        self.serial.set_dtr(val)
+        
+    def reset(self, isp):
+        self._set_reset(1)
+        time.sleep(0.25)
+        self._set_reset(0)
+        time.sleep(0.1)
+
+    def set_osc_freq(self):
+        pass
+
+    def read_sec(self):
+        return [True, True, True]
+
+    def read_clock6(self):
+        return True
+
+    def erase_block(self, block):
+        cmd = HexEraseBlockRx2()
+        self._send_cmd(cmd, 5)
+
+    def erase_status_boot_vector(self):
+        pass
+
+    def erase_chip(self):
+        pass
+
+    def prog_status(self):
+        pass
+
+    def prog_boot_vector(self, addr):
+        pass
+
+    def prog_clock6(self):
+        pass
+
+    def prog_sec(self, w=False, r=False, x=False):
+        pass
+
+def micro_factory(micro, freq, serial):
+    if micro in ("P89V664", "P89V662", "P89V660"):
+        return P89V66x(micro, freq, serial)
+    elif micro in ("P89V51RD2", "P89V51RC2", "P89V51RB2"):
+        return P89V51Rx2(micro, freq, serial)
+    else:
+        return None
+        
 ### GUI and CLI Interface ###
 
 def catch(func):
@@ -2049,7 +2111,9 @@ class GuiApp(sobject):
         serial - Serial object to use for communication
         """
         
-        micro = Micro(self.conf["type"], self.conf["osc-freq"], serial)
+        micro = micro_factory(self.conf["type"],
+                              self.conf["osc-freq"],
+                              serial)
         try:
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
@@ -2523,7 +2587,9 @@ class CmdApp(object):
         Args:
         serial -- Serial object to use for communication
         """
-        micro = Micro(self.conf["type"], self.conf["osc-freq"], serial)
+        micro = micro_factory(self.conf["type"],
+                              self.conf["osc-freq"],
+                              serial)
         try:
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
@@ -2821,8 +2887,9 @@ def main_cli():
                         format=progname + ': %(message)s')
 
     conf = Config()
+    cfname = config_filename
     try:
-        conf.read(config_filename)
+        conf.read(cfname)
     except ValueError, e:
         error("error parsing '%s': %s" % (cfname, e.args[0]))
         sys.exit(1)
