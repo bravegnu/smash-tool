@@ -74,72 +74,51 @@ timeo_msg = """Communication with device timed out. Please ensure the following
 1. The device is connected to the serial port.
 2. The baudrate and the oscillator frequency parameter are correct."""
 
-micro_info = {
-    "P89V660" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF)),
+common_sparams = {
     "data_bits": 8,
     "parity": False,
     "odd_parity": False,
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+}
+
+micro_info = {
+    "P89V660" : {
+    "mfg": "NXP",
+    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF)),
+    "sparams": common_sparams,
     "class": P89V66x
     },
     "P89V662" : {
     "mfg": "NXP",
     "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF)),
-    "data_bits": 8,
-    "parity": False,
-    "odd_parity": False,
-    "stop_bits": 1,
-    "soft_fc": False,
-    "hard_fc": False,
+    "sparams": common_sparams,
     "class": P89V66x
     },
     "P89V664" : {
     "mfg": "NXP",
     "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF),
                     (0x8000, 0xBFFF), (0xC000, 0xFFFF)),
-    "data_bits": 8,
-    "parity": False,
-    "odd_parity": False,
-    "stop_bits": 1,
-    "soft_fc": False,
-    "hard_fc": False,
+    "sparams": common_sparams,
     "class": P89V66x
     },
     "P89V51RD2" : {
-    "mfg": "Philips",
+    "mfg": "NXP",
     "block_range": ((0x0, 0xFFFF),),
-    "data_bits": 8,
-    "parity": False,
-    "odd_parity": False,
-    "stop_bits": 1,
-    "soft_fc": False,
-    "hard_fc": False,
+    "sparams": common_sparams,
     "class": P89V51Rx2
     },
     "P89V51RC2" : {
-    "mfg": "Philips",
+    "mfg": "NXP",
     "block_range": ((0x0, 0xEFFF),),
-    "data_bits": 8,
-    "parity": False,
-    "odd_parity": False,
-    "stop_bits": 1,
-    "soft_fc": False,
-    "hard_fc": False,
+    "sparams": common_sparams,
     "class": P89V51Rx2
     }, 
     "P89V51RB2" : {
-    "mfg": "Philips",
+    "mfg": "NXP",
     "block_range": ((0x0, 0x3FFF),),
-    "data_bits": 8,
-    "parity": False,
-    "odd_parity": False,
-    "stop_bits": 1,
-    "soft_fc": False,
-    "hard_fc": False,
+    "sparams": common_sparams,
     "class": P89V51Rx2
     },   
 }
@@ -1225,16 +1204,7 @@ class GuiApp(sobject):
         micro = self.conf["type"]
         mi = micro_info[micro]
 
-        sparams = { "data_bits": None,
-                    "parity": None,
-                    "odd_parity": None,
-                    "stop_bits": None,
-                    "soft_fc": None,
-                    "hard_fc": None }
-        
-        for key in sparams:
-            sparams[key] = mi[key]
-
+        sparams = mi["sparams"]        
         sparams["bps"] = self.conf["bps"]
 
         try:
