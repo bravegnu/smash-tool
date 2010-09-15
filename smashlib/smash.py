@@ -61,7 +61,12 @@ except ImportError, e:
 import thread
 import webbrowser
 import tempfile
-import atexit    
+import atexit
+
+from hex import Hex, HexFile, HexError
+from micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
+from p89v66x import P89V66x
+from p89v51rx2 import P89V51Rx2
 
 __version__ = "1.7.0"
 
@@ -79,6 +84,7 @@ micro_info = {
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+    "class": P89V66x
     },
     "P89V662" : {
     "mfg": "NXP",
@@ -89,6 +95,7 @@ micro_info = {
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+    "class": P89V66x
     },
     "P89V664" : {
     "mfg": "NXP",
@@ -100,6 +107,7 @@ micro_info = {
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+    "class": P89V66x
     },
     "P89V51RD2" : {
     "mfg": "Philips",
@@ -110,6 +118,7 @@ micro_info = {
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+    "class": P89V51Rx2
     },
     "P89V51RC2" : {
     "mfg": "Philips",
@@ -120,6 +129,7 @@ micro_info = {
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+    "class": P89V51Rx2
     }, 
     "P89V51RB2" : {
     "mfg": "Philips",
@@ -130,6 +140,7 @@ micro_info = {
     "stop_bits": 1,
     "soft_fc": False,
     "hard_fc": False,
+    "class": P89V51Rx2
     },   
 }
 
@@ -262,441 +273,7 @@ class Config(object):
         for key, value in self.conf.iteritems():
             f.write("%s=%s\n" % (key, value))
             
-### Hex File Parsing ###
-
-class HexError(Exception):
-    def __init__(self, msg, filename = None, lineno = None):
-        self.msg = msg
-        self.filename = filename
-        self.lineno = lineno
-
-class ProtoError(Exception):
-    pass
-
-class Hex(object):
-    def __init__(self, hex_line):
-        """Creates a hex record from the provided string.
-
-        Args:
-        hex_line -- the hex record as a string
-        """
-        self.hex = hex_line
-        
-    def checksum(self, hex_line):
-        """Returns the checksum of a hex line.
-
-        Args:
-        hex_line -- the hex line without the ':' prefix, and the
-        checksum suffix.
-
-        Raises:
-        HexError -- when the hex line contains invalid characters
-        """
-        csum = 0
-        nbytes = len(hex_line) / 2      # A byte consitutes two hex characters.
-        for i in range(nbytes):
-            pos = i * 2
-            try:
-                hex_byte = hex_line[pos:pos+2] 
-                byte = int(hex_byte, 16)
-            except IndexError:
-                raise HexError("insufficient bytes in hex line")
-            except ValueError:
-                raise HexError("invalid hex value %s in hex line" % hex_byte)
-
-            # Add to checksum, and shave off all other bytes except LSByte
-            csum += byte
-            csum &= 0xFF 
-
-        # Calculate 2's complement
-        csum ^= 0xFF  
-        csum += 1
-        csum &= 0xFF
-
-        return csum
-        
-    def append_checksum(self, hex_line):
-        """Returns the hex line appended with checksum.
-
-        Args:
-        hex_line -- the hex line without the checksum suffix.
-
-        Raises:
-        HexError -- when the hex line contains fewer bytes or invalid
-        characters.
-        """
-        try:
-            csum = self.checksum(hex_line[1:]) # Strip the colon off
-        except IndexError:
-            raise HexError("insufficient bytes in hex line")
-
-        csum_str = "%02x" % csum
-        return hex_line + csum_str
-
-    def get_type(self):
-        """Returns the type portion of hex line
-
-        Raises:
-        HexError -- when the hex line has insufficient bytes
-        """
-        try:
-            return self.hex[7:9];
-        except IndexError, e:
-            raise HexError("insufficient bytes in hex line")
-
-    def is_data(self):
-        """Returns True if the hex record type is data. Raises HexError."""
-        return self.get_type() == "00"
-
-    def is_eof(self):
-        """Returns True if the hex record type is EOF. Raises HexError."""
-        return self.get_type() == "01"
-
-    def addr(self):
-        """Returns the address portion of hex record. Raises HexError."""
-        try:
-            return int(self.hex[3:7], 16)
-        except IndexError, e:
-            raise HexError("insufficient bytes in hex line")
-        except ValueError, e:
-            raise HexError("invalid address in hex line")
-
-    def data(self):
-        dlen = self.datalen()
-        shex = 9
-        ehex = shex + (dlen * 2)
-        data = self.hex[shex:ehex]
-
-        byte_list = []
-        for i in range(0, dlen, 2):
-            try:
-                byte = data[i:i+2]
-                byte_list.append(int(byte, 16))
-            except IndexError, e:
-                raise HexError("insufficient no. of bytes in record")
-            except ValueError, e:
-                raise HexError("invalid bytes in record")
-
-        return tuple(byte_list)
-
-    def datalen(self):
-        """Returns the length of the data portion of the record. Raises HexError."""
-        try:
-            return int(self.hex[1:3], 16)
-        except IndexError, e:
-            raise HexError("insufficient bytes in hex line")
-        except ValueError, e:
-            raise HexError("invalid length specified in hex line")
-
-    def get_hex(self):
-        """Returns the hex record as a string."""
-        return self.hex
-
-    def __str__(self):
-        """Returns the hex record as a string."""
-        return self.hex
-
-class HexOscFreq(Hex):
-    def __init__(self, freq):
-        """Create a osc. freq set command from provided freq.
-
-        Args:
-        freq -- the freq to be set.
-
-        Raises:
-        ValueError -- if frequency is out of range
-        """
-        if freq & 0xFF != freq:
-            raise ValueError("frequency 0x%x is out of range" % freq)
-        
-        cmd = ":01000002%02x" % freq
-        self.hex = self.append_checksum(cmd)
-
-class HexEraseBlock(Hex):
-    def __init__(self, block):
-        """Create an erase block command from provided block address.
-
-        Args:
-        block -- the block address MSB to be erased.
-
-        Raises:
-        ValueError -- if the block no. is out of range.
-        """
-        if block & 0xFF != block:
-            raise ValueError("block address 0x%x out of range" % block)
-        
-        cmd = ":0200000301%02x" % block
-        self.hex = self.append_checksum(cmd)
-
-class HexEraseBlockRx2(Hex):
-    def __init__(self):
-        """Create an erase block command.
-        """
-        cmd = ":0100000301"
-        self.hex = self.append_checksum(cmd)
-
-class HexEraseBootVecStatus(Hex):
-    def __init__(self):
-        """Create a boot vector status read command."""
-        cmd = ":020000030400"
-        self.hex = self.append_checksum(cmd)
-
-class HexProgSecBit(Hex):
-    [W, R, X] = range(0, 3)
-    
-    def __init__(self, bit):
-        """Create a securtiy bit program command.
-
-        Args:
-        bit -- the security bit to be programmed.
-
-        Raises:
-        ValueError -- if security bit is invalid.
-        """
-        if bit & 0xFF != bit:
-            raise ValueError("security bit 0x%x out of range" % bit)
-
-        cmd = ":0200000305%02x" % bit
-        self.hex = self.append_checksum(cmd)
-
-class HexProgBootVec(Hex):
-    def __init__(self, val):
-        """Create a boot vector program command.
-
-        Args:
-        val -- the boot vector location MSB to be programmed.
-
-        Raises:
-        ValueError -- if val is out of range.
-        """
-        if val & 0xFF != val:
-            raise ValueError("vector byte 0x%x out of range" % val)
-        
-        cmd = ":030000030601%02x" % val
-        self.hex = self.append_checksum(cmd)
-
-class HexProgStatus(Hex):
-    def __init__(self):
-        """Create a program status command.
-        """
-
-        cmd = ":020000030600"
-        self.hex = self.append_checksum(cmd)
-
-class HexProgVec(Hex):
-    def __init__(self, val):
-        """Create a program vector command.
-
-        Args:
-        val -- the status byte to be programmed.
-
-        Raises:
-        ValueError -- if val is out of range.
-        """
-        if val & 0xFF != val:
-            raise ValueError("status byte 0x%x out of range" % val)
-
-        cmd = ":030000030601%02x" % val
-        self.hex = self.append_checksum(cmd)
-
-class HexProg6Clock(Hex):
-    def __init__(self):
-        """Create a 6x/12x bit command.
-        """
-
-        cmd = ":020000030602"
-        self.hex = self.append_checksum(cmd)
-
-class HexDispData(Hex):
-    def __init__(self, start, end):
-        """Create a data display command.
-
-        Args:
-        start -- the 16bit start address to display
-        end -- the 16bit end address to display
-
-        Raises:
-        ValueError -- if start or end is invalid
-        """
-        if start & 0xFFFF != start:
-            raise ValueError("data start address 0x%x out of range" % start)
-        elif end & 0xFFFF != end:
-            raise ValueError("data end address 0x%x out of range" % end)
-
-        cmd = ":05000004%04x%04x00" % (start, end)
-        self.hex = self.append_checksum(cmd)
-
-class HexBlankCheck(Hex):
-    def __init__(self, start, end):
-        """Create a blank check command.
-
-        Args:
-        start -- the start address to check
-        end -- the end address to check
-
-        Raises:
-        ValueError -- if start or end is invalid
-        """
-        if start & 0xFFFF != start:
-            raise ValueError("check start address 0x%x out of range" % start)
-        elif end & 0xFFFF != end:
-            raise ValueError("check end address 0x%x out of range" % end)
-        
-        cmd = ":05000004%04x%04x01" % (start, end)
-        self.hex = self.append_checksum(cmd)
-
-class HexReadInfo(Hex):
-    [MFG_ID, DEV_ID1, DEV_ID2, CLOCK_6x] = [0x0, 0x1, 0x2, 0x3]
-    [SEC_BITS, STATUS, BOOT_VEC] = [0x700, 0x701, 0x702]
-    
-    def __init__(self, what):
-        """Create a read info command.
-
-        Args:
-        what -- the information to be read.
-
-        Raises:
-        ValueError -- if what is out of range.
-        """
-        if what & 0xFFFF != what:
-            raise ValueError("info to read 0x%x out or range" % what)
-        
-        cmd = ":02000005%04x" % what
-        self.hex = self.append_checksum(cmd)
-
-class HexChipErase(Hex):
-    def __init__(self):
-        cmd = ":0100000307"
-        self.hex = self.append_checksum(cmd)
-
-class HexFile(object):
-    def __init__(self, filename):
-        """Create a HexFile object from the filename.
-
-        Args:
-        filename - the filename to create a HexFile obect from.
-        
-        Raises:
-        IOError, OSError - if file open fails
-        """
-        self.hexfile = file(filename)
-
-    def __iter__(self):
-        return self
-
-    def rewind(self):
-        self.hexfile.seek(0)
-
-    def next(self):
-        """Returns the next line as Hex object.
-
-        Raises:
-        HexError -- if the hex line is malformed
-        StopException -- when EOF is reached
-        """
-        h = Hex(self.hexfile.next())
-        if h.is_eof():
-            raise StopIteration("read EOF record")
-        return h
-
-    def block_from_addr(self, addr, ranges):
-        """Returns the block index corresponding to the addr.
-
-        Args:
-        addr -- the address to look for.
-        ranges -- the address ranges of blocks as a list of (start,
-        end) tuples.
-        """
-        for i, br in enumerate(ranges):
-            if addr >= br[0] and addr <= br[1]:
-                return i
-        return None
-
-    def count_data_bytes(self):
-        """Returns the no. of data bytes in the hex file.
-
-        The file offset pointer will be modified.
-        
-        Raises:
-        OSError, IOError -- if file open/read fails
-        HexError -- if the file contains malformed hex records
-        """
-        self.hexfile.seek(0)
-        
-        try:
-            total = 0
-            for lineno, record in enumerate(self):
-                if record.is_data():
-                    total += len(record.data())
-        except HexError, e:
-            raise HexError(e.msg, self.hexfile.name, lineno)
-        
-        return total
-
-    def data_bytes(self):
-        self.hexfile.seek(0)
-
-        try:
-            for lineo, record in enumerate(self):
-                if not record.is_data():
-                    continue
-                addr = record.addr()
-                data = record.data()
-                for i in range(len(data)):
-                    yield (addr + i, data[i])
-        except HexError, e:
-            raise HexError(e.msg, self.hexfile.name, lineno)
-            
-        return
-
-    def used_blocks(self, block_ranges):
-        """Returns the blocks used by the file.
-
-        The file offset pointer will be modified.
-
-        Args:
-        block_ranges -- the address ranges for the blocks as a list of
-        (start, end) tuples
-
-        Raises:
-        OSError, IOError -- if file open/read fails
-        HexError -- if the file contains malformed hex records
-        """
-        blocks = []
-
-        self.hexfile.seek(0)
-        
-        for i, record in enumerate(self):
-            try:
-                if record.is_eof():
-                    break
-                if not record.is_data():
-                    continue
-                addr = record.addr()
-            except HexError, e:
-                raise HexError(e.msg, self.hexfile.name, i)
-
-            b = self.block_from_addr(addr, block_ranges)
-            if b == None:
-                raise HexError("address out of device address range",
-                               self.hexfile.name, i)
-            
-            if b not in blocks:
-                blocks.append(b)
-
-        blocks.sort()
-        return blocks
-
 ### Serial Interface and ISP protocol ###
-
-class IspTimeoutError(Exception):
-    pass
-
-class IspChecksumError(Exception):
-    pass
-
-class IspProgError(Exception):
-    pass
 
 class Serial(object):
     """Class through which serial port can be configured and accessed.
@@ -938,436 +515,6 @@ class SimMicro(object):
         except KeyError, e:
             return 0xFF
 
-class Micro(object):
-    RESP_OK = "."
-    RESP_CSUM_ERR = "X"
-    RESP_PROG_ERR = "R"
-    responses = [RESP_OK, RESP_CSUM_ERR, RESP_PROG_ERR]
-    
-    def __init__(self, micro, freq, serial):
-        """Intialize from micro type, frequency and serial device file.
-
-        Args:
-        micro -- the type string of micro to index micro_info
-        freq -- the oscillator frequency
-        serial -- the serial device filename to access the micro-controller
-        """
-        self.micro = micro
-        self.freq = freq
-        self.serial = serial
-        self.cache = {}
-        self.clear_stats()
-
-    def clear_stats(self):
-        self.retry_stats = 0
-        self.timeo_stats = 0
-        self.cksum_stats = 0
-        self.proto_stats = 0
-        self.proge_stats = 0
-
-    def retry(self, tries, func, args):
-        ex = None
-        while tries > 0:
-            try:
-                return func(*args)
-            except IspTimeoutError, e:
-                ex = e
-                self.timeo_stats += 1
-            except IspProgError, e:
-                ex = e
-                self.proge_stats += 1
-            except IspChecksumError, e:
-                ex = e
-                self.cksum_stats += 1
-            except ProtoError, e:
-                ex = e
-                self.proto_stats += 1
-            tries -= 1
-            self.retry_stats += 1
-
-        raise e
-
-    def _sync_baudrate(self):
-        # The binary representation of U is 10101010. This character
-        # has to be sent first to the micro, so that the micro can
-        # calculate the baudrate. Atleast two 'U's have to be sent for
-        # proper baudrate identification.
-        
-        sync = "UUU"
-        self.serial.write(sync)
-        self.serial.wait_for("U")
-
-        # Read and discard the other Us
-        for i in range(2):
-            try:
-                self.serial.wait_for("U", 0.5)
-            except IspTimeoutError, e:
-                pass
-            
-    def sync_baudrate(self):
-        """Synchronize baudrate with micro.
-
-        Raises:
-        OSError, IOError -- if reading from/writing to device fails.
-        IspTimeoutError -- if no response for command from micro.
-        """
-        self.retry(8, self._sync_baudrate, ())
-
-    def __send_cmd(self, cmd, timeo=None):
-        self.serial.write(cmd)
-        if timeo == None:
-            resp = self.serial.wait_for(Micro.responses)
-        else:
-            resp = self.serial.wait_for(Micro.responses, timeo)
-
-        if resp == Micro.RESP_OK:
-            return
-        elif resp == Micro.RESP_CSUM_ERR:
-            raise IspChecksumError("checksum error during comm., recovery failed")
-        elif resp == Micro.RESP_PROG_ERR:
-            raise IspProgError("programming failed")
-        
-    def _send_cmd(self, cmd, timeo=None):
-        self.retry(8, self.__send_cmd, (cmd, timeo))
-
-    def prog_file(self, fname, complete_func=None):
-        """Program the specified file into the micro.
-
-        Args:
-        fname -- the filename to be programmed.
-        complete_func -- completer function called to indicate
-        percentage of completion.
-
-        Raises:
-        OSError, IOError -- if hex file open/read/write fails.
-        OSError, IOError -- if read write from serial device failed.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.
-        IspProgError -- if flash programming failed.
-        """
-        hex_file = file(fname)
-        lines = hex_file.readlines()
-        last = float(len(lines) - 1)
-
-        if complete_func:
-            complete_func(0)
-            
-        for i, line in enumerate(lines):
-            line = line.strip()
-            try:
-                self._send_cmd(line)
-            except IspProgError, e:
-                h = Hex(line)
-                raise IspProgError("programming %d bytes at 0x%04x failed, flash likely to be worn out"
-                                   % (h.datalen(), h.addr()))
-            if complete_func:
-                complete_func(i / last)
-
-        try:
-            self.erase_status_boot_vector()
-        finally:
-            self.prog_boot_vector(0xFC)
-
-    def _update_cache_with_line(self, line):
-        """Update the cache with a single data line from micro.
-
-        The data line should contain 16 bytes.
-
-        Raises:
-        ProtoError -- if the line is not in correct format or is not
-        sufficiently long.
-        """
-        try:
-            addr, data = line.split("=")
-        except ValueError, e:
-            raise ProtoError("invalid data line format")
-            
-        cache_line = []
-        for i in range(0, len(data), 2):
-            try:
-                byte = data[i:i+2]
-                cache_line.append(int(byte, 16))
-            except IndexError, e:
-                raise ProtoError("data line is not of sufficient length")
-            except ValueError, e:
-                raise ProtoError("invalid bytes in data line")
-
-        try:
-            addr = int(addr, 16)
-        except ValueError, e:
-            raise ProtoError("invalid bytes in data line")
-            
-        self.cache[addr] = tuple(cache_line)
-
-    def _update_cache_with_data(self, dbuf):
-        """Update the cache with the data buffer.
-
-        Raises:
-        ProtoError -- if the data buffer contains invalid data lines.
-        """
-        lines = dbuf.split("\r")
-        
-        for l in lines:
-            l = l.strip()
-            # Clean up any echoes
-            if ":" in l or len(l) == 0: 
-                continue            
-            self._update_cache_with_line(l)
-
-    def _update_cache(self, align16):
-        """Update the cache with data read from micro.
-
-        Raises:
-        OSError, IOError -- if reading/writing to serial device fails.
-        ProtoError -- if invalid data lines are read from micro.
-        """
-        start = align16
-            
-        end = align16 + 1024 - 1
-        if end > 0xFFFF:
-            end = 0xFFFF
-
-        cmd = HexDispData(start, end)
-        self.serial.write(cmd)
-        self.serial.write("\r")
-
-        dbuf_list = []
-        
-        while True:
-            dbuf = self.serial.read_timeo(256, 0.1)
-            if dbuf == "":
-                break
-            dbuf_list.append(dbuf)
-            
-        dbuf = "".join(dbuf_list)
-
-        self._update_cache_with_data(dbuf)
-
-    def _getitem(self, addr):
-        align16 = addr & 0xFFF0
-        offset  = addr & 0x000F
-
-        if align16 not in self.cache:
-            self._update_cache(align16)
-
-        try:
-            byte = self.cache[align16][offset]
-        except KeyError, e:
-            raise ProtoError("micro has not provided the required data line: %x"
-                             % align16)
-        
-        return byte
-        
-    def __getitem__(self, addr):
-        """Return the byte at specified address.
-
-        Raises:
-        OSError, IOError -- if reading/writing to serial device fails.
-        ProtoError -- if invalid data lines are read from micro.
-        """
-        return self.retry(8, self._getitem, (addr,))
-
-class P89V66x(Micro):
-    def _set_reset(self, val):
-        """Set/clear the reset line.
-
-        Raises:
-        OSError, IOError -- if setting the RESET line fails.
-        """
-        self.serial.set_dtr(val)
-
-    def _set_psen(self, val):
-        """Set/clear the reset line.
-
-        Raises:
-        OSError, IOError -- if setting the PSEN line fails.
-        """
-        self.serial.set_rts(val)
-
-    def reset(self, isp):
-        """Reset the micro-controller.
-
-        If isp is set, the micro-controller is switched into ISP mode.
-
-        Raises:
-        OSError, IOError -- if toggling RESET and PSEN line fails
-        """
-        if isp == 1:
-            self._set_reset(1)
-            self._set_psen(1)
-            time.sleep(0.25)
-            self._set_reset(0)
-            time.sleep(0.25)
-            self._set_psen(0)
-        else:
-            self._set_reset(1)
-            time.sleep(0.25)
-            self._set_reset(0)
-
-    def set_osc_freq(self):
-        """Set the oscillator frequency in the micro.
-
-        Raises:
-        ValueError -- if frequency is invalid.
-        OSError, IOError -- if reading from/writing to serial device fails.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.
-        """
-        cmd = HexOscFreq(self.freq)
-        self._send_cmd(cmd)
-
-    def _read_info(self, info):
-        cmd = HexReadInfo(info)
-        self.serial.write(cmd)
-
-        self.serial.wait_for(":")
-        self.serial.read_timeo(len(cmd.hex) - 1)
-        
-        data = self.serial.read_timeo(3)
-        if len(data) != 3:
-            raise IspTimeoutError("timed out reading info bytes")
-        
-        try:
-            return int(data[-3:-1], 16)
-        except ValueError, e:
-            raise ProtoError("invalid info string")
-
-    def read_info(self, info):
-        """Read micro-controller information. (and discard).
-
-        Raises:
-        OSError, IOError -- if reading from/writing to serial device fails.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.
-        ProtoError -- if invalid data lines are read from micro.        
-        """
-        return self.retry(8, self._read_info, (info,))
-
-    def read_sec(self):
-        data = self.read_info(HexReadInfo.SEC_BITS)
-        return [bool(data & 0x2), bool(data & 0x4), bool(data & 0x8)]
-
-    def read_clock6(self):
-        data = self.read_info(HexReadInfo.CLOCK_6x)
-        return bool(data)
-        
-    def _block_to_hex(self, block):
-        """Returns the byte used in hex commands to denote a block.
-
-        Args:
-        block -- the index of the block
-        """
-        mi = micro_info[self.micro]
-        brange = mi["block_range"][block]
-        bstart = brange[0]
-        return (bstart >> 8) & 0xFF
-
-    def erase_block(self, block):
-        """Erase the block specified.
-
-        Args:
-        block -- the index of the block to be erased.
-
-        Raises:
-        OSError, IOError -- if reading from/writing to serial device fails.
-        IspTimeoutError -- if no response for command from micro.
-        IspChecksumError -- if checksum error occured during communication.        
-        """
-        try:
-            bhex = self._block_to_hex(block)
-        except IndexError, e:
-            raise ValueError("invalid erase block")
-        cmd = HexEraseBlock(bhex)
-
-        # Some crazy micro-controllers take as much as 30 seconds to
-        # erase a block.
-        self._send_cmd(cmd, 5)
-
-    def erase_status_boot_vector(self):
-        cmd = HexEraseBootVecStatus()
-        self._send_cmd(cmd)
-
-    def erase_chip(self):
-        cmd = HexChipErase()
-        self._send_cmd(cmd)
-
-    def prog_status(self):
-        cmd = HexProgStatus()
-        self._send_cmd(cmd)
-
-    def prog_boot_vector(self, addr):
-        cmd = HexProgVec(addr)
-        self._send_cmd(cmd)
-
-    def prog_clock6(self):
-        cmd = HexProg6Clock()
-        self._send_cmd(cmd)
-
-    def prog_sec(self, w=False, r=False, x=False):
-        if w:
-            cmd = HexProgSecBit(HexProgSecBit.W)
-            self._send_cmd(cmd)            
-        if r:
-            cmd = HexProgSecBit(HexProgSecBit.R)
-            self._send_cmd(cmd)            
-        if x:
-            cmd = HexProgSecBit(HexProgSecBit.X)
-            self._send_cmd(cmd)
-
-class P89V51Rx2(Micro):
-    def _set_reset(self, val):
-        """Set/clear the reset line.
-
-        Raises:
-        OSError, IOError -- if setting the RESET line fails.
-        """
-        self.serial.set_dtr(val)
-        
-    def reset(self, isp):
-        self._set_reset(1)
-        time.sleep(0.25)
-        self._set_reset(0)
-        time.sleep(0.1)
-
-    def set_osc_freq(self):
-        pass
-
-    def read_sec(self):
-        return [True, True, True]
-
-    def read_clock6(self):
-        return True
-
-    def erase_block(self, block):
-        cmd = HexEraseBlockRx2()
-        self._send_cmd(cmd, 5)
-
-    def erase_status_boot_vector(self):
-        pass
-
-    def erase_chip(self):
-        pass
-
-    def prog_status(self):
-        pass
-
-    def prog_boot_vector(self, addr):
-        pass
-
-    def prog_clock6(self):
-        pass
-
-    def prog_sec(self, w=False, r=False, x=False):
-        pass
-
-def micro_factory(micro, freq, serial):
-    if micro in ("P89V664", "P89V662", "P89V660"):
-        return P89V66x(micro, freq, serial)
-    elif micro in ("P89V51RD2", "P89V51RC2", "P89V51RB2"):
-        return P89V51Rx2(micro, freq, serial)
-    else:
-        return None
-        
 ### GUI and CLI Interface ###
 
 def catch(func):
@@ -2110,10 +1257,9 @@ class GuiApp(sobject):
         Args:
         serial - Serial object to use for communication
         """
-        
-        micro = micro_factory(self.conf["type"],
-                              self.conf["osc-freq"],
-                              serial)
+
+        cls = micro_info[self.conf["type"]]["class"]
+        micro = cls(self.conf["type"], self.conf["osc-freq"], serial)
         try:
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
@@ -2196,14 +1342,16 @@ class GuiApp(sobject):
             try:
                 micro.erase_block(block)
             except (OSError, IOError), e:
-                self.goserror("Erasing block failed: %(strerror)s", e)
+                self.goserror("Erasing block failed: %(strerror)s",
+                              {"strerror": e})
                 return
 
         self.statusbar.set_text("Programming file ...")
         try:
             micro.prog_file(hex_filename, self.update_program_pbar)
         except (OSError, IOError), e:
-            self.goserror("Programming file %(filename)s failed: %(strerror)s", e)
+            self.goserror("Prog. file %(filename)s failed: %(strerror)s",
+                          {"filename": hex_filename, "strerror": e})
             return
 
         # FIXME: There is no way to differentiate between serial I/O
@@ -2255,7 +1403,7 @@ class GuiApp(sobject):
         if ret == None:
             return
         
-        wprotect, rprotect, xprotect = ret
+        wprotect, rprotect, xprotect, pprotect = ret
             
         ret = self.do_micro(self.read_clock6)
         if ret == None:
@@ -2587,9 +1735,9 @@ class CmdApp(object):
         Args:
         serial -- Serial object to use for communication
         """
-        micro = micro_factory(self.conf["type"],
-                              self.conf["osc-freq"],
-                              serial)
+
+        cls = micro_info[self.conf["type"]]["class"]
+        micro = cls(self.conf["type"], self.conf["osc-freq"], serial)
         try:
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
@@ -2721,7 +1869,7 @@ class CmdApp(object):
             qprint("\n")
 
     def display_info(self, micro):
-        [w, r, x] = micro.read_sec()
+        w, r, x, p = micro.read_sec()
         clock6 = not micro.read_clock6()
 
         def bool2str(b):
