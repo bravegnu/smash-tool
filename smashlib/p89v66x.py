@@ -320,18 +320,21 @@ micro_info.update({
     "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF)),
     "sparams": common_sparams,
     "class": P89V66x,
+    "security": ( "r", "w", "x" )
     },
     "P89V662" : {
     "mfg": "NXP",
     "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF)),
     "sparams": common_sparams,
-    "class": P89V66x
+    "class": P89V66x,
+    "security": ( "r", "w", "x" )
     },
     "P89V664" : {
     "mfg": "NXP",
     "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF),
                     (0x8000, 0xBFFF), (0xC000, 0xFFFF)),
     "sparams": common_sparams,
-    "class": P89V66x
+    "class": P89V66x,
+    "security": ( "r", "w", "x" )
     }
 })

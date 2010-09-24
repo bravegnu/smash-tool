@@ -1048,7 +1048,7 @@ class GuiApp(sobject):
         # Initialize configuration widgets
         self.micro_combo = ConfigCombo(self.gmap.type_combo, self.gmap,
                                   self.conf, "type")
-        self.micro_combo.set_change_callback(self.update_erase_list)
+        self.micro_combo.set_change_callback(self.micro_changed)
         self.bps_combo = ConfigCombo(self.gmap.bps_combo, self.gmap,
                                      self.conf, "bps")
         self.osc_freq_entry = ConfigEntry(self.gmap.osc_freq_entry, self.gmap,
@@ -1059,14 +1059,19 @@ class GuiApp(sobject):
         self.init_hex_fdialog_filters()
         self.used_blocks = []
 
-        # Initialize erase block list
         micro_default = self.conf["type"]
+
+        # Initialize erase block list
         block_ranges = micro_info[micro_default]["block_range"]
         self.erase_list = EraseList(self.gmap.erase_treeview, self.gmap, block_ranges)
+
+        # Initialize security UI
+        self.init_security_ui(micro_info[micro_default]["security"])
 
         # Initialize flash dump text view
         font_desc = pango.FontDescription("monospace")
         self.gmap.dump_textview.modify_font(font_desc)
+
 
         # Initialize status bar, serial combo and eavesdrop
         self.statusbar = StatusBar(self.gmap.statusbar, self.gmap)
@@ -1090,12 +1095,38 @@ class GuiApp(sobject):
     def main(self):
         gtk.main()
 
-    def update_erase_list(self, data):
+    def init_security_ui(self, caps):
+        rprotect = "r" in caps
+        wprotect = "w" in caps
+        xprotect = "x" in caps
+        pprotect = "p" in caps
+        serialno = "serial" in caps
+        
+        self.gmap.rprotect_label.set_sensitive(rprotect)
+        self.gmap.rprotect_button.set_sensitive(rprotect)
+        
+        self.gmap.wprotect_label.set_sensitive(wprotect)
+        self.gmap.wprotect_button.set_sensitive(wprotect)
+        
+        self.gmap.xprotect_label.set_sensitive(xprotect)
+        self.gmap.xprotect_button.set_sensitive(xprotect)
+        
+        self.gmap.pprotect_label.set_sensitive(pprotect)
+        self.gmap.pprotect_label.set_sensitive(pprotect)
+
+        self.gmap.serial_entry.set_sensitive(serialno)
+        self.gmap.serial_button.set_sensitive(serialno)
+
+    def micro_changed(self, data):
         """Update erase list from the currently selected micro."""
         
         micro = self.conf["type"]
+        
         block_ranges = micro_info[micro]["block_range"]
         self.erase_list.set_block_ranges(block_ranges)
+
+        security = micro_info[micro]["security"]
+        self.init_security_ui(security)
 
     def on_erase_blocks_check_toggled(self, *args):
         erase_hex_blocks = self.gmap.erase_blocks_check.get_active()

@@ -156,18 +156,21 @@ micro_info.update({
     "block_range": ((0x0, 0xFFFF),),
     "sparams": common_sparams,
     "class": P89V51Rx2,
+    "security": ( "p", "serial" )
     },
     "P89V51RC2" : {
     "mfg": "NXP",
     "block_range": ((0x0, 0xEFFF),),
     "sparams": common_sparams,
     "class": P89V51Rx2,
+    "security": ( "p", "serial" )    
     }, 
     "P89V51RB2" : {
     "mfg": "NXP",
     "block_range": ((0x0, 0x3FFF),),
     "sparams": common_sparams,
     "class": P89V51Rx2,
+    "security": ( "p", "serial" )    
     } 
 })
 
