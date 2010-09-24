@@ -65,6 +65,7 @@ import atexit
 
 from hex import Hex, HexFile, HexError
 from micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
+from micro import micro_info
 from p89v66x import P89V66x
 from p89v51rx2 import P89V51Rx2
 
@@ -73,55 +74,6 @@ __version__ = "1.7.0"
 timeo_msg = """Communication with device timed out. Please ensure the following
 1. The device is connected to the serial port.
 2. The baudrate and the oscillator frequency parameter are correct."""
-
-common_sparams = {
-    "data_bits": 8,
-    "parity": False,
-    "odd_parity": False,
-    "stop_bits": 1,
-    "soft_fc": False,
-    "hard_fc": False,
-}
-
-micro_info = {
-    "P89V660" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF)),
-    "sparams": common_sparams,
-    "class": P89V66x
-    },
-    "P89V662" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF)),
-    "sparams": common_sparams,
-    "class": P89V66x
-    },
-    "P89V664" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF),
-                    (0x8000, 0xBFFF), (0xC000, 0xFFFF)),
-    "sparams": common_sparams,
-    "class": P89V66x
-    },
-    "P89V51RD2" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0xFFFF),),
-    "sparams": common_sparams,
-    "class": P89V51Rx2
-    },
-    "P89V51RC2" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0xEFFF),),
-    "sparams": common_sparams,
-    "class": P89V51Rx2
-    }, 
-    "P89V51RB2" : {
-    "mfg": "NXP",
-    "block_range": ((0x0, 0x3FFF),),
-    "sparams": common_sparams,
-    "class": P89V51Rx2
-    },   
-}
 
 config_filename = os.path.expanduser("~/.smashrc")
 cfname = config_filename
@@ -1351,8 +1303,11 @@ class GuiApp(sobject):
 
         return ret
 
-    def prog_sec(self, micro, w=False, r=False, x=False):
-        micro.prog_sec(w, r, x)
+    def prog_serial(self, micro, serialno):
+        micro.prog_serial(serialno)
+
+    def prog_sec(self, micro, w=False, r=False, x=False, p=False):
+        micro.prog_sec(w, r, x, p)
 
     def prog_clock6(self, micro):
         micro.prog_clock6()
@@ -1366,9 +1321,7 @@ class GuiApp(sobject):
     def read_clock6(self, micro):
         return micro.read_clock6()
 
-    @catch
-    @catch_timeo
-    def on_read_bits_button_clicked(self, *args):
+    def read_bits(self):
         ret = self.do_micro(self.read_sec)
         if ret == None:
             return
@@ -1396,9 +1349,34 @@ class GuiApp(sobject):
         self.gmap.xprotect_label.set_text(label)
         self.gmap.xprotect_img.set_from_stock(img, gtk.ICON_SIZE_BUTTON)
 
+        label, img = yesno[pprotect]
+        self.gmap.pprotect_label.set_text(label)
+        self.gmap.pprotect_img.set_from_stock(img, gtk.ICON_SIZE_BUTTON)
+        
         label, img = yesno[clock6]
         self.gmap.clock6_label.set_text(label)
-        self.gmap.clock6_img.set_from_stock(img, gtk.ICON_SIZE_BUTTON)
+        self.gmap.clock6_img.set_from_stock(img, gtk.ICON_SIZE_BUTTON)        
+
+    @catch
+    @catch_timeo
+    def on_serial_button_clicked(self, *args):
+        serialno = self.gmap.serial_entry.get_text()
+        serial_max = 31
+        if len(serialno) > (2 * serial_max):
+            self.gerror("Serial no. should be 31 bytes or less.")
+            return
+        
+        for d in serialno:
+            if d not in string.hexdigits:
+                self.gerror("Serial no. should be in hex.")
+                return
+        
+        self.do_micro(self.prog_serial, serialno)
+
+    @catch
+    @catch_timeo
+    def on_read_bits_button_clicked(self, *args):
+        self.read_bits()
         
     @catch
     @catch_timeo    
@@ -1426,6 +1404,14 @@ class GuiApp(sobject):
 
     @catch
     @catch_timeo
+    def on_pprotect_button_clicked(self, *args):
+        self.do_micro(self.prog_sec, p=True)
+        self.gmap.pprotect_label.set_text("Yes")
+        self.gmap.pprotect_img.set_from_stock(gtk.STOCK_YES,
+                                              gtk.ICON_SIZE_BUTTON)
+
+    @catch
+    @catch_timeo
     def on_clock6_button_clicked(self, *args):
         self.do_micro(self.prog_clock6)
         self.gmap.clock6_label.set_text("Yes")
@@ -1445,9 +1431,14 @@ class GuiApp(sobject):
         self.gmap.xprotect_label.set_text("No")
         self.gmap.xprotect_img.set_from_stock(gtk.STOCK_NO,
                                               gtk.ICON_SIZE_BUTTON)
+        self.gmap.pprotect_label.set_text("No")
+        self.gmap.pprotect_img.set_from_stock(gtk.STOCK_NO,
+                                              gtk.ICON_SIZE_BUTTON)        
         self.gmap.clock6_label.set_text("No")
         self.gmap.clock6_img.set_from_stock(gtk.STOCK_NO,
                                             gtk.ICON_SIZE_BUTTON)
+
+        self.read_bits()
 
     @catch
     def on_config_save_button_clicked(self, *args):
@@ -1673,16 +1664,7 @@ class CmdApp(object):
         mtype = self.conf["type"]
         mi = micro_info[mtype]
 
-        sparams = { "data_bits": None,
-                    "parity": None,
-                    "odd_parity": None,
-                    "stop_bits": None,
-                    "soft_fc": None,
-                    "hard_fc": None }
-        
-        for key in sparams:
-            sparams[key] = mi[key]
-
+        sparams = mi["sparams"]
         sparams["bps"] = self.conf["bps"]
 
         try:
@@ -1888,7 +1870,7 @@ class CmdApp(object):
             self.program(micro, self.options.prog)
 
         if self.options.prog != None and self.options.verify:
-            self.verify(micro, options.prog)
+            self.verify(micro, self.options.prog)
 
         if self.options.prog_sec != None:
             if "W" in self.options.prog_sec:
@@ -1897,6 +1879,8 @@ class CmdApp(object):
                 micro.prog_sec(r=True)
             if "X" in self.options.prog_sec:
                 micro.prog_sec(x=True)
+            if "P" in self.options.prog_sec:
+                micro.prog_sec(p=True)
 
         if self.options.prog_clock6:
             micro.prog_clock6()

@@ -1,7 +1,8 @@
 import time
 
 from hex import Hex
-from micro import Micro
+from micro import Micro, micro_info
+from micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 
 class HexOscFreq(Hex):
     def __init__(self, freq):
@@ -168,6 +169,32 @@ class P89V66x(Micro):
             time.sleep(0.25)
             self._set_reset(0)
 
+    def _sync_baudrate(self):
+        # The binary representation of U is 10101010. This character
+        # has to be sent first to the micro, so that the micro can
+        # calculate the baudrate. Atleast two 'U's have to be sent for
+        # proper baudrate identification.
+        
+        sync = "UUU"
+        self.serial.write(sync)
+        self.serial.wait_for("U")
+
+        # Read and discard the other Us
+        for i in range(2):
+            try:
+                self.serial.wait_for("U", 0.5)
+            except IspTimeoutError, e:
+                pass
+            
+    def sync_baudrate(self):
+        """Synchronize baudrate with micro.
+
+        Raises:
+        OSError, IOError -- if reading from/writing to device fails.
+        IspTimeoutError -- if no response for command from micro.
+        """
+        self.retry(8, self._sync_baudrate, ())
+
     def set_osc_freq(self):
         """Set the oscillator frequency in the micro.
 
@@ -278,3 +305,33 @@ class P89V66x(Micro):
             cmd = HexProgSecBit(HexProgSecBit.X)
             self._send_cmd(cmd)
 
+common_sparams = {
+    "data_bits": 8,
+    "parity": False,
+    "odd_parity": False,
+    "stop_bits": 1,
+    "soft_fc": False,
+    "hard_fc": False,
+}
+
+micro_info.update({
+    "P89V660" : {
+    "mfg": "NXP",
+    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF)),
+    "sparams": common_sparams,
+    "class": P89V66x,
+    },
+    "P89V662" : {
+    "mfg": "NXP",
+    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF)),
+    "sparams": common_sparams,
+    "class": P89V66x
+    },
+    "P89V664" : {
+    "mfg": "NXP",
+    "block_range": ((0x0, 0x1FFF), (0x2000, 0x3FFF), (0x4000, 0x7FFF),
+                    (0x8000, 0xBFFF), (0xC000, 0xFFFF)),
+    "sparams": common_sparams,
+    "class": P89V66x
+    }
+})

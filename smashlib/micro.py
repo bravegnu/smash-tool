@@ -1,5 +1,8 @@
 from hex import Hex
 
+# Contains information about all supported micros
+micro_info = {}
+
 class ProtoError(Exception):
     pass
 
@@ -54,7 +57,8 @@ class Micro(object):
     RESP_OK = "."
     RESP_CSUM_ERR = "X"
     RESP_PROG_ERR = "R"
-    responses = [RESP_OK, RESP_CSUM_ERR, RESP_PROG_ERR]
+    RESP_PROG2_ERR = "P"
+    responses = [RESP_OK, RESP_CSUM_ERR, RESP_PROG_ERR, RESP_PROG2_ERR]
     
     def __init__(self, micro, freq, serial):
         """Intialize from micro type, frequency and serial device file.
@@ -105,16 +109,16 @@ class Micro(object):
         # calculate the baudrate. Atleast two 'U's have to be sent for
         # proper baudrate identification.
         
-        sync = "UUU"
+        sync = "U"
         self.serial.write(sync)
         self.serial.wait_for("U")
 
         # Read and discard the other Us
-        for i in range(2):
-            try:
-                self.serial.wait_for("U", 0.5)
-            except IspTimeoutError, e:
-                pass
+#         for i in range(2):
+#             try:
+#                 self.serial.wait_for("U", 0.5)
+#             except IspTimeoutError, e:
+#                 pass
             
     def sync_baudrate(self):
         """Synchronize baudrate with micro.
@@ -138,6 +142,9 @@ class Micro(object):
             raise IspChecksumError("checksum error during comm., recovery failed")
         elif resp == Micro.RESP_PROG_ERR:
             raise IspProgError("programming failed")
+
+        elif resp == Micro.RESP_PROG2_ERR:
+            raise IspProgError("programming failed")        
         
     def _send_cmd(self, cmd, timeo=None):
         self.retry(8, self.__send_cmd, (cmd, timeo))
