@@ -1864,6 +1864,7 @@ class CmdApp(object):
         print "Write Protected:", bool2str(w)
         print "Read Protected:", bool2str(r)
         print "External Execution Inhibited:", bool2str(x)
+        print "Parallel Program Inhibited:", bool2str(x)
         print "Clock Mode:",
         if clock6:
             print "6x"
