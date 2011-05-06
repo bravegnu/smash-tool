@@ -236,7 +236,7 @@ class P89V66x(Micro):
 
     def read_sec(self):
         data = self.read_info(HexReadInfo.SEC_BITS)
-        return [bool(data & 0x2), bool(data & 0x4), bool(data & 0x8), None]
+        return [bool(data & 0x2), bool(data & 0x4), bool(data & 0x8), False]
 
     def read_clock6(self):
         data = self.read_info(HexReadInfo.CLOCK_6x)
