@@ -69,7 +69,7 @@ from micro import micro_info
 from p89v66x import P89V66x
 from p89v51rx2 import P89V51Rx2
 
-__version__ = "1.7.0"
+__version__ = "1.9.0"
 
 timeo_msg = """Communication with device timed out. Please ensure the following
 1. The device is connected to the serial port.
@@ -339,8 +339,21 @@ class Serial(object):
         Raises:
         OSError, IOError -- if writing to serial device fails
         """
+        
+        # The following loop could have been replaced by
+        # write(str(string)). But the micro seems to have a fixed size
+        # software buffer about 8 bytes long. Writing huge chunks of
+        # strings to it can cause the micro's buffer to overflow and
+        # results in retries and checksum errors. To avoid this we
+        # flush out 8 bytes at a time.
 
-        self.serial.write(str(string))
+        for i, ch in enumerate(str(string)):
+            self.serial.write(ch)
+            if i % 8 == 0:
+                self.serial.flush()
+            
+        self.serial.flush()
+
         if self.eavesdrop_func:
             self.eavesdrop_func("out", str(string))        
 
