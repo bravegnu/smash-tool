@@ -5,6 +5,7 @@ Priority: optional
 Architecture: all
 Essential: no
 Depends: python (>= 2.4), python-serial(>=2.3), python-gtk2 (>= 2.12), python-dbus (>= 0.82)
+Installed-Size: 460
 Maintainer: Zilogic Systems <code@zilogic.com>
 Description: 8051 In-System Programming tool
  Smash is an 8051 micro-controller In-System Programming (ISP) tool,
