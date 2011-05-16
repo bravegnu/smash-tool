@@ -69,7 +69,7 @@ from micro import micro_info
 from p89v66x import P89V66x
 from p89v51rx2 import P89V51Rx2
 
-__version__ = "1.9.0"
+__version__ = "1.10.0"
 
 timeo_msg = """Communication with device timed out. Please ensure the following
 1. The device is connected to the serial port.
@@ -768,10 +768,7 @@ class SerialComboEntry(sobject):
                                           '/org/freedesktop/Hal/Manager')
             self.hal = dbus.Interface(hal_obj, 'org.freedesktop.Hal.Manager')
         except dbus.DBusException, e:
-            self.gerror("It seems that DBUS or HAL service is not available. "
-                        "These services are required for smash to function properly."
-                        "Please start these service and restart smash.")
-            sys.exit(1)
+            dbus_available = False
             
     def init_combo(self):
         """Initialize combobox widget items."""
