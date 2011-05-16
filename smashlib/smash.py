@@ -346,10 +346,13 @@ class Serial(object):
         # strings to it can cause the micro's buffer to overflow and
         # results in retries and checksum errors. To avoid this we
         # flush out 8 bytes at a time.
+	#
+	# Note the buffer is 8 bytes in V664 and 4 bytes in RD2.
+	# So we flush for every 4 bytes now.
 
         for i, ch in enumerate(str(string)):
             self.serial.write(ch)
-            if i % 8 == 0:
+            if i % 4 == 0:
                 self.serial.flush()
             
         self.serial.flush()
