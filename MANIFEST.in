@@ -1,2 +1,3 @@
-include smash README rpinit.py
+include smash README rpinit.py Makefile
 recursive-include smashlib/resources *
+recursive-include pkg *
