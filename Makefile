@@ -6,16 +6,11 @@ inject-version:
 	sed -e "s/@VER@/$(VER)/" pkg/rpm.spec.in > pkg/rpm.spec
 
 deb: inject-version install
-	@if [ $$(whoami) != root ]; then    \
-		echo "*******************"; \
-		echo "Run under fakeroot."; \
-		echo "*******************"; \
-		exit 1;                     \
-	fi 
-	chown -R root:root $(DESTDIR)/
+	fakeroot chown -R root:root $(DESTDIR)/
 	mkdir -p $(DESTDIR)/DEBIAN
 	cp pkg/control $(DESTDIR)/DEBIAN
-	dpkg -b $(DESTDIR) dist/smash-$(VER).deb
+	mkdir -p dist
+	fakeroot dpkg -b $(DESTDIR) dist/smash-$(VER).deb
 
 sdist:
 	python setup.py sdist
