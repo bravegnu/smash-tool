@@ -15,8 +15,12 @@ deb: inject-version install
 sdist:
 	python setup.py sdist
 
-rpm: inject-version sdist
-	rpmbuild -tb dist/smash-$(VER).tar.gz
+rpm: sdist
+	mkdir -p build/rpm/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+	cp pkg/rpm.spec build/rpm/SPECS
+	cp dist/smash-$(VER).tar.gz build/rpm/SOURCES
+	rpmbuild --define "_topdir $$(pwd)/build/rpm" -bb build/rpm/SPECS/rpm.spec
+	cp build/rpm/RPMS/noarch/smash-$(VER)-1.noarch.rpm dist/
 
 install: BIN=$(DESTDIR)/usr/bin
 install: APP=$(DESTDIR)/usr/share/smash
