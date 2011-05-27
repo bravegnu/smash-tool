@@ -5,7 +5,9 @@ inject-version:
 	sed -e "s/@VER@/$(VER)/" pkg/control.in > pkg/control
 	sed -e "s/@VER@/$(VER)/" pkg/rpm.spec.in > pkg/rpm.spec
 
-deb: inject-version install
+# We invoke sdist here so that setup.py can create the python modules
+# for the resource files
+deb: sdist inject-version install
 	fakeroot chown -R root:root $(DESTDIR)/
 	mkdir -p $(DESTDIR)/DEBIAN
 	cp pkg/control $(DESTDIR)/DEBIAN
