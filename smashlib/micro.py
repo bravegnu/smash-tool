@@ -182,10 +182,13 @@ class Micro(object):
             if complete_func:
                 complete_func(i / last)
 
-        try:
-            self.erase_status_boot_vector()
-        finally:
-            self.prog_boot_vector(0xFC)
+        # FIXME: Erase status and boot vector only if status byte is
+        # non-zero.
+        if False:
+            try:
+                self.erase_status_boot_vector()
+            finally:
+                self.prog_boot_vector(0xFC)
 
     def _update_cache_with_line(self, line):
         """Update the cache with a single data line from micro.
