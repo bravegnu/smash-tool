@@ -69,7 +69,7 @@ from micro import micro_info
 from p89v66x import P89V66x
 from p89v51rx2 import P89V51Rx2
 
-__version__ = "1.10.0"
+__version__ = "1.11.0"
 
 timeo_msg = """Communication with device timed out. Please ensure the following
 1. The device is connected to the serial port.
