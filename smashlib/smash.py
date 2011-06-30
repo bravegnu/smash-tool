@@ -341,19 +341,14 @@ class Serial(object):
         """
         
         # The following loop could have been replaced by
-        # write(str(string)). But the micro seems to have a fixed size
-        # software buffer about 8 bytes long. Writing huge chunks of
-        # strings to it can cause the micro's buffer to overflow and
-        # results in retries and checksum errors. To avoid this we
-        # flush out 8 bytes at a time.
-	#
-	# Note the buffer is 8 bytes in V664 and 4 bytes in RD2.
-	# So we flush for every 4 bytes now.
+        # write(str(string)). But the micro has a 1 byte buffer.
+        # Writing huge chunks of data to it can cause the micro's
+        # buffer to overflow and result in retries and checksum
+        # errors. To avoid this we flush out 1 byte at a time.
 
         for i, ch in enumerate(str(string)):
             self.serial.write(ch)
-            if i % 4 == 0:
-                self.serial.flush()
+            self.serial.flush()
             
         self.serial.flush()
 
@@ -762,6 +757,8 @@ class SerialComboEntry(sobject):
         Raises:
         dbus.DBusException -- if dbus or hal service is not available
         """
+        global dbus_available
+        
         try:
             self.bus = dbus.SystemBus()
             hal_obj = self.bus.get_object('org.freedesktop.Hal',
