@@ -1,0 +1,9 @@
+Minor Tasks:
+
+  * Calulate the progress bar width from COLWIDTH environment variable.
+  * Add eavesdrop functionality to command line interface.
+
+Bugs:
+
+ * When an operation is in progress (say dump or program) another
+   operation should not be started.

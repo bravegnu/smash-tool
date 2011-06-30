@@ -1,0 +1,22 @@
+Source: smash
+Section: devel
+Priority: extra
+Maintainer: Zilogic Systems <code@zilogic.com>
+Build-Depends: debhelper (>= 5.0.38), cdbs (>= 0.4.43), python-all-dev (>= 2.3.5-11), python-support (>= 0.3)
+Standards-Version: 3.7.3
+
+Package: smash
+XB-Python-Version: ${python:Versions}
+Provides: ${python:Provides}
+Architecture: all
+Depends: ${python:Depends}, python-serial(>=2.3), python-gtk2 (>= 2.12), python-dbus (>= 0.82)
+Description: build system used for embedded Linux distributions
+ BitBake is a simple tool for the execution of tasks. It is derived from
+ Portage, which is the package management system used by the Gentoo Linux
+ distribution.
+ It is most commonly used to build packages, as it can easily use its
+ rudimentary inheritence to abstract common operations, such as fetching
+ sources, unpacking them, patching them, compiling them, and so on.
+ It is the basis of the OpenEmbedded project, which is being used for 
+ OpenZaurus, Familiar and a number of other Linux distributions.
+
