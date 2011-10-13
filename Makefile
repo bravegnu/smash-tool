@@ -1,4 +1,5 @@
 VER=$(shell python smash --version)
+SHELL=bash
 
 DESTDIR=build/debian
 inject-version:
