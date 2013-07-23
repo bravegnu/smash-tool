@@ -8,7 +8,7 @@ URL: http://code.google.com/p/smash-tool
 Source0: smash-@VER@.tar.gz
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires: python >= 2.4, pyserial >= 2.2, pygtk2 >= 2.8, dbus-python >= 0.71
+Requires: python >= 2.4, pyserial >= 2.2, pygtk2 >= 2.8, dbus-python >= 0.71, pygtk2-libglade >= 2.12
 
 %description
 Smash is an 8051 micro-controller In-System Programming (ISP) tool,
