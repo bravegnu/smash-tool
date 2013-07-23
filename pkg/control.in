@@ -4,7 +4,7 @@ Section: embedded
 Priority: optional
 Architecture: all
 Essential: no
-Depends: python (>= 2.4), python-serial(>=2.3), python-gtk2 (>= 2.12), python-dbus (>= 0.82)
+Depends: python (>= 2.4), python-serial(>=2.3), python-gtk2 (>= 2.12), python-dbus (>= 0.82), python-glade2 (>= 2.17)
 Installed-Size: 460
 Maintainer: Zilogic Systems <code@zilogic.com>
 Description: 8051 In-System Programming tool
