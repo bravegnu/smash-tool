@@ -56,6 +56,6 @@ image::docs/prog-screen.png[]
 
 == Maintainer
 
-Smash is developed and maintained by Zilogic Systems.
+Smash is developed and maintained by http://zilogic.com[Zilogic Systems].
 
-<a href='http://www.zilogic.com'><img src='zilogic-logo.png' /></a>
+image::docs/zilogic-logo.png[]
