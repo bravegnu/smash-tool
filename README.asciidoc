@@ -1,6 +1,6 @@
 = Smash
 
-image::icons/logo-64.png[float=right]
+image::icons/logo-128.png[float="right"]
 
 Smash is an 8051 microcontroller In-System Programming (ISP) tool, for
 Philips and NXP microcontrollers. It is a replacement for FlashMagic
