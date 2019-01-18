@@ -23,8 +23,6 @@ work in both Windows and Linux.
 
 ## Supported Microcontrollers
 
-<img src='docs/prog-screen.png' align='right'/>
-
 | **Microcontroller** | **Supported?** |
 | ------------------- | -------------- |
 | P89V660             | Yes	       |
@@ -35,6 +33,8 @@ work in both Windows and Linux.
 | P89V51RD2           | Development    |
 
 ## Installation
+
+<img src='docs/prog-screen.png' align='right'/>
 
   * Please ensure the following packages are available before
     installing smash.
