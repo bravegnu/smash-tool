@@ -4,7 +4,7 @@ Smash is an 8051 microcontroller In-System Programming (ISP) tool, for Philips a
 
 Smash is written in Python has both a command line interface and GUI interface. The GUI interface uses the GTK+ toolkit, and is designed to work in both Windows and Linux.
 
-<img src='http://wiki.smash-tool.googlecode.com/hg/prog-screen.png' align='right' />
+<img src='prog-screen.png' align='right' />
 
 ## Features ##
 
@@ -29,4 +29,4 @@ Smash is written in Python has both a command line interface and GUI interface. 
 
 ## Sponsor ##
 
-<a href='http://www.zilogic.com'><img src='http://wiki.smash-tool.googlecode.com/hg/zilogic-logo.png' /></a>
+<a href='http://www.zilogic.com'><img src='zilogic-logo.png' /></a>

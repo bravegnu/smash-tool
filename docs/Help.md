@@ -15,7 +15,7 @@ corresponding micro-controller data-sheet.
 
 ## Configuring Smash ##
 
-<img src='http://wiki.smash-tool.googlecode.com/hg/config-shot.png' align='right' />
+<img src='config-shot.png' align='right' />
 
 Smash has to be configured, before it can be used for communicating
 with the microcontroller. Click on the "Config." toolbar button, to
@@ -50,7 +50,7 @@ the microcontroller in ISP mode.
 
 ## Programming a Hex File ##
 
-<img src='http://wiki.smash-tool.googlecode.com/hg/prog-shot.png' align='right' />
+<img src='prog-shot.png' align='right' />
 
 The steps for programming a Hex file is given below.
 
