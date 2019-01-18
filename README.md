@@ -1,6 +1,6 @@
-= Smash
+# Smash
 
-image::icons/logo-128.png[float="right"]
+<img src='icons/logo-128.png' align='right'/>
 
 Smash is an 8051 microcontroller In-System Programming (ISP) tool, for
 Philips and NXP microcontrollers. It is a replacement for FlashMagic
@@ -11,9 +11,9 @@ Smash is written in Python has both a command line interface and GUI
 interface. The GUI interface uses the GTK+ toolkit, and is designed to
 work in both Windows and Linux.
 
-image::docs/prog-screen.png[]
+<img src='docs/prog-screen.png' align='right'/>
 
-== Features
+## Features
 
   * Hex file programming
   * Verification after programming
@@ -23,19 +23,18 @@ image::docs/prog-screen.png[]
   * Command-line and GUI interface
   * Works on Windows and Linux
 
-== Supported Microcontrollers
+## Supported Microcontrollers
 
-|======
-| **Microcontroller** | **Supported?**
-| P89V660             | Yes
-| P89V662             | Yes
-| P89V664             | Yes
-| P89V51RB2 	      | Development
-| P89V51RC2           | Development
-| P89V51RD2           | Development
-|======
+| **Microcontroller** | **Supported?** |
+| ------------------- | -------------- |
+| P89V660             | Yes	       |
+| P89V662             | Yes	       |
+| P89V664             | Yes	       |
+| P89V51RB2 	      | Development    |
+| P89V51RC2           | Development    |
+| P89V51RD2           | Development    |
 
-== Installation
+## Installation
 
   * Please ensure the following packages are available before
     installing smash.
@@ -52,12 +51,12 @@ image::docs/prog-screen.png[]
     directory. (You will require root privileges to install smash in
     the system directories)
 
-------
+```
 # python setup.py install
-------
+```
 
-== Maintainer
+## Maintainer
 
-Smash is developed and maintained by http://zilogic.com[Zilogic Systems].
+Smash is developed and maintained by [Zilogic Systems](http://zilogic.com).
 
-image::docs/zilogic-logo.png[]
+<img src='docs/zilogic-logo.png'/>
