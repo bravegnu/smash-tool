@@ -11,8 +11,6 @@ Smash is written in Python has both a command line interface and GUI
 interface. The GUI interface uses the GTK+ toolkit, and is designed to
 work in both Windows and Linux.
 
-<img src='docs/prog-screen.png' align='right'/>
-
 ## Features
 
   * Hex file programming
@@ -24,6 +22,8 @@ work in both Windows and Linux.
   * Works on Windows and Linux
 
 ## Supported Microcontrollers
+
+<img src='docs/prog-screen.png' align='right'/>
 
 | **Microcontroller** | **Supported?** |
 | ------------------- | -------------- |
