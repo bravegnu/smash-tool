@@ -23,14 +23,15 @@ work in both Windows and Linux.
 
 == Supported Microcontrollers
 
+|======
 | **Microcontroller** | **Supported?**  |
-|:--------------------|:----------------|
 | P89V660             | Yes             |
 | P89V662             | Yes             |
 | P89V664             | Yes             |
 | P89V51RB2 	      | Development     |
 | P89V51RC2           | Development     |
 | P89V51RD2           | Development     |
+|======
 
 == Installation
 
