@@ -1553,7 +1553,7 @@ class GuiApp(sobject):
         self.gmap.notebook.set_current_page(4)
 
     def show_help(self):
-        url = "http://code.google.com/p/smash-tool/wiki/Help?show=content"
+        url = "https://github.com/zilogic-systems/smash/blob/master/docs/Help.md"
         webbrowser.open(url)
 
     @catch

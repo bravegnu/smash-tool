@@ -4,7 +4,7 @@ Release: 1
 Summary: 8051 In-System Progamming (ISP) tool
 Group:Applications/Engineering		
 License: GPL
-URL: http://code.google.com/p/smash-tool
+URL: http://github.com/zilogic-systems/smash
 Source0: smash-@VER@.tar.gz
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
