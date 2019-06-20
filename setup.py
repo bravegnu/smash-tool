@@ -27,11 +27,10 @@ class rp_sdist(sdist):
         """Before building the source distribution, we would like to
         have required resource modules generated and the __init__.py
         nuked."""
-        
         d = "smashlib/resources/"
-        from smashlib.resources import smash_glade
+        from smashlib.resources import smash_ui
         # Nuke smashlib/resources/__init__.py
-        file(d + "__init__.py", "w")
+        open(d + "__init__.py", "w")
         ret = sdist.run(self)
         shutil.copyfile("rpinit.py", d + "__init__.py")
         return ret

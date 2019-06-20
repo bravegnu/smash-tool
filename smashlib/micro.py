@@ -1,4 +1,4 @@
-from hex import Hex
+from .hexfile import Hex
 
 # Contains information about all supported micros
 micro_info = {}
@@ -31,7 +31,7 @@ class HexDispData(Hex):
         elif end & 0xFFFF != end:
             raise ValueError("data end address 0x%x out of range" % end)
 
-        cmd = ":05000004%04x%04x00" % (start, end)
+        cmd = b":05000004%04x%04x00" % (start, end)
         self.hex = self.append_checksum(cmd)
 
 class HexBlankCheck(Hex):
@@ -45,19 +45,21 @@ class HexBlankCheck(Hex):
         Raises:
         ValueError -- if start or end is invalid
         """
+        print("__init__ start")
         if start & 0xFFFF != start:
             raise ValueError("check start address 0x%x out of range" % start)
         elif end & 0xFFFF != end:
             raise ValueError("check end address 0x%x out of range" % end)
         
-        cmd = ":05000004%04x%04x01" % (start, end)
+        cmd = b":05000004%04x%04x01" % (start, end)
         self.hex = self.append_checksum(cmd)
+        print("__init end")
 
 class Micro(object):
-    RESP_OK = "."
-    RESP_CSUM_ERR = "X"
-    RESP_PROG_ERR = "R"
-    RESP_PROG2_ERR = "P"
+    RESP_OK = b"."
+    RESP_CSUM_ERR = b"X"
+    RESP_PROG_ERR = b"R"
+    RESP_PROG2_ERR = b"P"
     responses = [RESP_OK, RESP_CSUM_ERR, RESP_PROG_ERR, RESP_PROG2_ERR]
     
     def __init__(self, micro, freq, serial):
@@ -86,40 +88,40 @@ class Micro(object):
         while tries > 0:
             try:
                 return func(*args)
-            except IspTimeoutError, e:
+            except IspTimeoutError as e:
                 ex = e
                 self.timeo_stats += 1
-            except IspProgError, e:
+            except IspProgError as e:
                 ex = e
                 self.proge_stats += 1
-            except IspChecksumError, e:
+            except IspChecksumError as e:
                 ex = e
                 self.cksum_stats += 1
-            except ProtoError, e:
+            except ProtoError as e:
                 ex = e
                 self.proto_stats += 1
             tries -= 1
             self.retry_stats += 1
 
-        raise e
+        raise ex
 
     def _sync_baudrate(self):
         # The binary representation of U is 10101010. This character
         # has to be sent first to the micro, so that the micro can
         # calculate the baudrate. Atleast two 'U's have to be sent for
         # proper baudrate identification.
-        
-        sync = "U"
+
+        sync = b"U"
         self.serial.write(sync)
-        self.serial.wait_for("U")
+        self.serial.wait_for(b"U")
 
         # Read and discard the other Us
-#         for i in range(2):
-#             try:
-#                 self.serial.wait_for("U", 0.5)
-#             except IspTimeoutError, e:
-#                 pass
-            
+        #         for i in range(2):
+        #             try:
+        #                 self.serial.wait_for("U", 0.5)
+        #             except IspTimeoutError, e:
+        #                 pass
+
     def sync_baudrate(self):
         """Synchronize baudrate with micro.
 
@@ -144,7 +146,7 @@ class Micro(object):
             raise IspProgError("programming failed")
 
         elif resp == Micro.RESP_PROG2_ERR:
-            raise IspProgError("programming failed")        
+            raise IspProgError("programming failed")
         
     def _send_cmd(self, cmd, timeo=None):
         self.retry(8, self.__send_cmd, (cmd, timeo))
@@ -164,7 +166,7 @@ class Micro(object):
         IspChecksumError -- if checksum error occured during communication.
         IspProgError -- if flash programming failed.
         """
-        hex_file = file(fname)
+        hex_file = open(fname, "rb")
         lines = hex_file.readlines()
         last = float(len(lines) - 1)
 
@@ -175,7 +177,7 @@ class Micro(object):
             line = line.strip()
             try:
                 self._send_cmd(line)
-            except IspProgError, e:
+            except IspProgError as e:
                 h = Hex(line)
                 raise IspProgError("programming %d bytes at 0x%04x failed, flash likely to be worn out"
                                    % (h.datalen(), h.addr()))
@@ -200,8 +202,8 @@ class Micro(object):
         sufficiently long.
         """
         try:
-            addr, data = line.split("=")
-        except ValueError, e:
+            addr, data = line.split(b"=")
+        except ValueError as e:
             raise ProtoError("invalid data line format")
             
         cache_line = []
@@ -209,14 +211,14 @@ class Micro(object):
             try:
                 byte = data[i:i+2]
                 cache_line.append(int(byte, 16))
-            except IndexError, e:
+            except IndexError as e:
                 raise ProtoError("data line is not of sufficient length")
-            except ValueError, e:
+            except ValueError as e:
                 raise ProtoError("invalid bytes in data line")
 
         try:
             addr = int(addr, 16)
-        except ValueError, e:
+        except ValueError as e:
             raise ProtoError("invalid bytes in data line")
             
         self.cache[addr] = tuple(cache_line)
@@ -227,13 +229,13 @@ class Micro(object):
         Raises:
         ProtoError -- if the data buffer contains invalid data lines.
         """
-        lines = dbuf.split("\r")
+        lines = dbuf.split(b"\r")
         
         for l in lines:
             l = l.strip()
             # Clean up any echoes
-            if ":" in l or len(l) == 0: 
-                continue            
+            if b":" in l or len(l) == 0:
+                continue 
             self._update_cache_with_line(l)
 
     def _update_cache(self, align16):
@@ -244,40 +246,36 @@ class Micro(object):
         ProtoError -- if invalid data lines are read from micro.
         """
         start = align16
-            
         end = align16 + 1024 - 1
         if end > 0xFFFF:
             end = 0xFFFF
 
         cmd = HexDispData(start, end)
         self.serial.write(cmd)
-        self.serial.write("\r")
-
+        temp = b"\r"
+        self.serial.write(temp)
         dbuf_list = []
         
         while True:
             dbuf = self.serial.read_timeo(256, 0.1)
-            if dbuf == "":
+            if dbuf == b"":
                 break
             dbuf_list.append(dbuf)
             
-        dbuf = "".join(dbuf_list)
+        dbuf = b"".join(dbuf_list)
 
         self._update_cache_with_data(dbuf)
 
     def _getitem(self, addr):
         align16 = addr & 0xFFF0
         offset  = addr & 0x000F
-
         if align16 not in self.cache:
             self._update_cache(align16)
-
         try:
             byte = self.cache[align16][offset]
-        except KeyError, e:
+        except KeyError as e:
             raise ProtoError("micro has not provided the required data line: %x"
                              % align16)
-        
         return byte
         
     def __getitem__(self, addr):

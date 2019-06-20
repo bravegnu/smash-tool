@@ -3,7 +3,7 @@
 import sys
 try:
     import smashlib.smash
-except ImportError, e:
+except ImportError as e:
     sys.path.append("/usr/share/smash")
     import smashlib.smash
 
