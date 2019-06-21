@@ -1049,8 +1049,8 @@ class GuiApp(sobject):
             pixbuf = gtk.gdk.pixbuf_new_from_file(logo_fname)
         except Exception as e:
             pass
-        # os.remove(logo_fname)
-        # os.rmdir(logo_dname)
+        os.remove(logo_fname)
+        os.rmdir(logo_dname)
         
         # Initialize main dialog
         self.gmap.main_win.set_icon(pixbuf)
@@ -1210,7 +1210,7 @@ class GuiApp(sobject):
         try:
             serial = Serial(serial_filename, sparams, self.eavesdrop.append_text)
         except (OSError, IOError) as e:
-            self.goserror("Unable to open serial device %s: %s"
+            self.gerror("Unable to open serial device %s: %s"
                         % (serial_filename, e.strerror))
             return None
         except xserial.SerialException as e:
@@ -1248,6 +1248,7 @@ class GuiApp(sobject):
 
     def verify(self, micro, hex_filename):
         """Check if the contents of the micro matches that of the file."""
+
         self.update_program_pbar(0)
         self.statusbar.set_text("verifying ...")
 
