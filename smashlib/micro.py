@@ -45,7 +45,6 @@ class HexBlankCheck(Hex):
         Raises:
         ValueError -- if start or end is invalid
         """
-        print("__init__ start")
         if start & 0xFFFF != start:
             raise ValueError("check start address 0x%x out of range" % start)
         elif end & 0xFFFF != end:
@@ -53,7 +52,6 @@ class HexBlankCheck(Hex):
         
         cmd = b":05000004%04x%04x01" % (start, end)
         self.hex = self.append_checksum(cmd)
-        print("__init end")
 
 class Micro(object):
     RESP_OK = b"."
