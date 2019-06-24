@@ -1,43 +1,43 @@
 import time
 
-from hex import Hex
-from micro import Micro, micro_info
-from micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
+from .hexfile import Hex
+from .micro import Micro, micro_info
+from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 
 class HexEraseBlock(Hex):
     def __init__(self):
         """Create an erase block command.
         """
-        cmd = ":0100000301"
+        cmd = b":0100000301"
         self.hex = self.append_checksum(cmd)
 
 class HexChipErase(Hex):
     def __init__(self):
-        self.hex = ":00000007F9"
+        self.hex = b":00000007F9"
 
 class HexProg6Clock(Hex):
     def __init__(self):
-        cmd = ":020000030505"
+        cmd = b":020000030505"
         self.hex = self.append_checksum(cmd)
 
 class HexProgSecBit(Hex):
     def __init__(self):
-        cmd = ":020000030501"
+        cmd = b":020000030501"
         self.hex = self.append_checksum(cmd)
 
 class HexReadInfo(Hex):
     def __init__(self):
-        cmd = ":020000050700"
+        cmd = b":020000050700"
         self.hex = self.append_checksum(cmd)
 
 class HexProgSerial(Hex):
     def __init__(self, serialno):
-        cmd = ":%02x000009%s" % (len(serialno)/2, serialno)
+        cmd = b":%02x000009%s" % (len(serialno)/2, serialno)
         self.hex = self.append_checksum(cmd)
 
 class HexReadSerial(Hex):
     def __init__(self):
-        cmd = ":0000000A"
+        cmd = b":0000000A"
         self.hex = self.append_checksum(cmd)
 
 class P89V51Rx2(Micro):
@@ -48,14 +48,13 @@ class P89V51Rx2(Micro):
         OSError, IOError -- if reading from/writing to device fails.
         IspTimeoutError -- if no response for command from micro.
         """
-        
         # The binary representation of U is 10101010. This character
         # has to be sent first to the micro, so that the micro can
         # calculate the baudrate.
         
-        sync = "U"
+        sync = b"U"
         self.serial.write(sync)
-        self.serial.wait_for("U")
+        self.serial.wait_for(b"U")
         
     def _set_reset(self, val):
         """Set/clear the reset line.
@@ -81,7 +80,6 @@ class P89V51Rx2(Micro):
         # Read and discard
         self.serial.wait_for(":")
         self.serial.read_timeo(len(cmd.hex) - 1)
-
         # Info bytes
         data = self.serial.read_timeo(3)
         if len(data) != 3:
@@ -89,22 +87,20 @@ class P89V51Rx2(Micro):
 
         try:
             return int(data[-3:-1], 16)
-        except ValueError, e:
+        except ValueError as e:
             raise ProtoError("invalid info string")
 
     def read_sec(self):
         info = self._read_info()
         # print info
-
         pprotect = False
         if info & 0x4:
             pprotect = True
-        
+
         return (False, False, False, pprotect)
 
     def read_clock6(self):
         info = self._read_info()
-
         clock6 = False
         if info & 0x1:
             clock6 = True
@@ -120,7 +116,7 @@ class P89V51Rx2(Micro):
 
     def erase_chip(self):
         cmd = HexChipErase()
-        self._send_cmd(cmd)        
+        self._send_cmd(cmd)
 
     def prog_status(self):
         pass

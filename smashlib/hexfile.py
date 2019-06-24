@@ -26,7 +26,7 @@ class Hex(object):
         HexError -- when the hex line contains invalid characters
         """
         csum = 0
-        nbytes = len(hex_line) / 2      # A byte consitutes two hex characters.
+        nbytes = len(hex_line) // 2      # A byte consitutes two hex characters.
         for i in range(nbytes):
             pos = i * 2
             try:
@@ -63,7 +63,7 @@ class Hex(object):
         except IndexError:
             raise HexError("insufficient bytes in hex line")
 
-        csum_str = "%02x" % csum
+        csum_str = b"%02x" % csum
         return hex_line + csum_str
 
     def get_type(self):
@@ -74,24 +74,24 @@ class Hex(object):
         """
         try:
             return self.hex[7:9];
-        except IndexError, e:
+        except IndexError as e:
             raise HexError("insufficient bytes in hex line")
 
     def is_data(self):
         """Returns True if the hex record type is data. Raises HexError."""
-        return self.get_type() == "00"
+        return self.get_type() == b"00"
 
     def is_eof(self):
         """Returns True if the hex record type is EOF. Raises HexError."""
-        return self.get_type() == "01"
+        return self.get_type() == b"01"
 
     def addr(self):
         """Returns the address portion of hex record. Raises HexError."""
         try:
             return int(self.hex[3:7], 16)
-        except IndexError, e:
+        except IndexError as e:
             raise HexError("insufficient bytes in hex line")
-        except ValueError, e:
+        except ValueError as e:
             raise HexError("invalid address in hex line")
 
     def data(self):
@@ -105,9 +105,9 @@ class Hex(object):
             try:
                 byte = data[i:i+2]
                 byte_list.append(int(byte, 16))
-            except IndexError, e:
+            except IndexError as e:
                 raise HexError("insufficient no. of bytes in record")
-            except ValueError, e:
+            except ValueError as e:
                 raise HexError("invalid bytes in record")
 
         return tuple(byte_list)
@@ -116,16 +116,16 @@ class Hex(object):
         """Returns the length of the data portion of the record. Raises HexError."""
         try:
             return int(self.hex[1:3], 16)
-        except IndexError, e:
+        except IndexError as e:
             raise HexError("insufficient bytes in hex line")
-        except ValueError, e:
+        except ValueError as e:
             raise HexError("invalid length specified in hex line")
 
     def get_hex(self):
         """Returns the hex record as a string."""
         return self.hex
 
-    def __str__(self):
+    def __bytes__(self):
         """Returns the hex record as a string."""
         return self.hex
 
@@ -139,7 +139,7 @@ class HexFile(object):
         Raises:
         IOError, OSError - if file open fails
         """
-        self.hexfile = file(filename)
+        self.hexfile = open(filename, "rb")
 
     def __iter__(self):
         return self
@@ -147,14 +147,14 @@ class HexFile(object):
     def rewind(self):
         self.hexfile.seek(0)
 
-    def next(self):
+    def __next__(self):
         """Returns the next line as Hex object.
 
         Raises:
         HexError -- if the hex line is malformed
         StopException -- when EOF is reached
         """
-        h = Hex(self.hexfile.next())
+        h = Hex(self.hexfile.__next__())
         if h.is_eof():
             raise StopIteration("read EOF record")
         return h
@@ -188,7 +188,7 @@ class HexFile(object):
             for lineno, record in enumerate(self):
                 if record.is_data():
                     total += len(record.data())
-        except HexError, e:
+        except HexError as e:
             raise HexError(e.msg, self.hexfile.name, lineno)
         
         return total
@@ -204,7 +204,7 @@ class HexFile(object):
                 data = record.data()
                 for i in range(len(data)):
                     yield (addr + i, data[i])
-        except HexError, e:
+        except HexError as e:
             raise HexError(e.msg, self.hexfile.name, lineno)
             
         return
@@ -233,7 +233,7 @@ class HexFile(object):
                 if not record.is_data():
                     continue
                 addr = record.addr()
-            except HexError, e:
+            except HexError as e:
                 raise HexError(e.msg, self.hexfile.name, i)
 
             b = self.block_from_addr(addr, block_ranges)

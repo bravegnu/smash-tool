@@ -1,8 +1,8 @@
 import time
 
-from hex import Hex
-from micro import Micro, micro_info
-from micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
+from .hexfile import Hex
+from .micro import Micro, micro_info
+from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 
 class HexOscFreq(Hex):
     def __init__(self, freq):
@@ -17,7 +17,7 @@ class HexOscFreq(Hex):
         if freq & 0xFF != freq:
             raise ValueError("frequency 0x%x is out of range" % freq)
         
-        cmd = ":01000002%02x" % freq
+        cmd = b":01000002%02x" % freq
         self.hex = self.append_checksum(cmd)
 
 class HexEraseBlock(Hex):
@@ -39,7 +39,7 @@ class HexEraseBlock(Hex):
 class HexEraseBootVecStatus(Hex):
     def __init__(self):
         """Create a boot vector status read command."""
-        cmd = ":020000030400"
+        cmd = b":020000030400"
         self.hex = self.append_checksum(cmd)
 
 class HexProgSecBit(Hex):
@@ -57,7 +57,7 @@ class HexProgSecBit(Hex):
         if bit & 0xFF != bit:
             raise ValueError("security bit 0x%x out of range" % bit)
 
-        cmd = ":0200000305%02x" % bit
+        cmd = b":0200000305%02x" % bit
         self.hex = self.append_checksum(cmd)
 
 class HexProgBootVec(Hex):
@@ -73,7 +73,7 @@ class HexProgBootVec(Hex):
         if val & 0xFF != val:
             raise ValueError("vector byte 0x%x out of range" % val)
         
-        cmd = ":030000030601%02x" % val
+        cmd = b":030000030601%02x" % val
         self.hex = self.append_checksum(cmd)
 
 class HexProgStatus(Hex):
@@ -81,7 +81,7 @@ class HexProgStatus(Hex):
         """Create a program status command.
         """
 
-        cmd = ":020000030600"
+        cmd = b":020000030600"
         self.hex = self.append_checksum(cmd)
 
 class HexProgVec(Hex):
@@ -97,7 +97,7 @@ class HexProgVec(Hex):
         if val & 0xFF != val:
             raise ValueError("status byte 0x%x out of range" % val)
 
-        cmd = ":030000030601%02x" % val
+        cmd = b":030000030601%02x" % val
         self.hex = self.append_checksum(cmd)
 
 class HexProg6Clock(Hex):
@@ -105,7 +105,7 @@ class HexProg6Clock(Hex):
         """Create a 6x/12x bit command.
         """
 
-        cmd = ":020000030602"
+        cmd = b":020000030602"
         self.hex = self.append_checksum(cmd)
 
 class HexReadInfo(Hex):
@@ -124,12 +124,12 @@ class HexReadInfo(Hex):
         if what & 0xFFFF != what:
             raise ValueError("info to read 0x%x out or range" % what)
         
-        cmd = ":02000005%04x" % what
+        cmd = b":02000005%04x" % what
         self.hex = self.append_checksum(cmd)
 
 class HexChipErase(Hex):
     def __init__(self):
-        cmd = ":0100000307"
+        cmd = b":0100000307"
         self.hex = self.append_checksum(cmd)
 
 class P89V66x(Micro):
@@ -175,15 +175,15 @@ class P89V66x(Micro):
         # calculate the baudrate. Atleast two 'U's have to be sent for
         # proper baudrate identification.
         
-        sync = "UUU"
+        sync = b"UUU"
         self.serial.write(sync)
-        self.serial.wait_for("U")
+        self.serial.wait_for(b"U")
 
         # Read and discard the other Us
         for i in range(2):
             try:
-                self.serial.wait_for("U", 0.5)
-            except IspTimeoutError, e:
+                self.serial.wait_for(b"U", 0.5)
+            except IspTimeoutError as e:
                 pass
             
     def sync_baudrate(self):
@@ -211,7 +211,7 @@ class P89V66x(Micro):
         cmd = HexReadInfo(info)
         self.serial.write(cmd)
 
-        self.serial.wait_for(":")
+        self.serial.wait_for(b":")
         self.serial.read_timeo(len(cmd.hex) - 1)
         
         data = self.serial.read_timeo(3)
@@ -220,7 +220,7 @@ class P89V66x(Micro):
         
         try:
             return int(data[-3:-1], 16)
-        except ValueError, e:
+        except ValueError as e:
             raise ProtoError("invalid info string")
 
     def read_info(self, info):
@@ -266,7 +266,7 @@ class P89V66x(Micro):
         """
         try:
             bhex = self._block_to_hex(block)
-        except IndexError, e:
+        except IndexError as e:
             raise ValueError("invalid erase block")
         cmd = HexEraseBlock(bhex)
 

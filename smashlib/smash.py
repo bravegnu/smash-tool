@@ -24,7 +24,7 @@ import os.path
 import traceback
 import string
 from optparse import OptionParser
-import ConfigParser
+import configparser
 import time
 import serial
 import itertools
@@ -37,37 +37,39 @@ dbus_available = True
 winreg_available = True
 
 try:
-    import gobject
-    import gtk
-    import gtk.glade
-    import pango
-except ImportError, e:
+    import gi
+    gi.require_version("Gtk", "3.0")
+    #import pygtk
+    from gi.repository import Gtk as gtk
+    from gi.repository import GObject as gobject
+    from gi.repository import Pango as pango
+except ImportError as e:
     gui_available = False
-except RuntimeError, e:
+except RuntimeError as e:
     x_available = False
 
 try:
     import dbus
     import dbus.glib
-except ImportError, e:
+except ImportError as e:
     dbus_available = False
 
 try:
     import _winreg as winreg
-except ImportError, e:
+except ImportError as e:
     winreg_available = False
 
 # For Help System
-import thread
+import _thread
 import webbrowser
 import tempfile
 import atexit
 
-from hex import Hex, HexFile, HexError
-from micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
-from micro import micro_info
-from p89v66x import P89V66x
-from p89v51rx2 import P89V51Rx2
+from .hexfile import Hex, HexFile, HexError
+from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
+from .micro import micro_info
+from .p89v66x import P89V66x
+from .p89v51rx2 import P89V51Rx2
 
 __version__ = "1.13.0"
 
@@ -112,7 +114,7 @@ class ConfigInfo(object):
         self.default = default
     
 class Config(object):
-    type_allowed = micro_info.keys()
+    type_allowed = list(micro_info.keys())
     bps_allowed = [0,     50,     75,
                    110,   134,    150,
                    200,   300,    600,
@@ -133,14 +135,14 @@ class Config(object):
         }
         
         defaults = dict([ (key, value.default)
-                          for key, value in self.config_info.iteritems() ])
+                          for key, value in self.config_info.items() ])
 
-        self.parser = ConfigParser.RawConfigParser(defaults)
+        self.parser = configparser.RawConfigParser(defaults)
         self.parser.add_section("micro")
 
         self.conf = {}
 
-        for key, info in self.config_info.iteritems():
+        for key, info in self.config_info.items():
             self[key] = self.parser.get("micro", key)
 
     def __setitem__(self, key, value):
@@ -161,7 +163,7 @@ class Config(object):
         if type(value) == str:
             try:
                 value = ci.transform(value)
-            except ValueError, e:
+            except ValueError as e:
                 raise ValueError("invalid config value '%s' for '%s'" % (value, key))
         elif type(value) != ci.ctype:
             raise TypeError("invalid config type for '%s'" % key)
@@ -182,11 +184,11 @@ class Config(object):
 
         Raises:
         ValueError -- if configuration values are invalid
-        ConfigParser.ParsingError -- if error occurs while parsing file
+        configparser.ParsingError -- if error occurs while parsing file
         MissingSectionHeaderError -- if no section headers are present in file
         """
         self.parser.read(filename)
-        for key, info in self.config_info.iteritems():
+        for key, info in self.config_info.items():
             self[key] = self.parser.get("micro", key)
 
     @classmethod
@@ -199,9 +201,9 @@ class Config(object):
             raise ValueError("expected true or false")
 
     def write(self, fname):
-        f = file(fname, "w")
+        f = open(fname, "w")
         f.write("[micro]\n")
-        for key, value in self.conf.iteritems():
+        for key, value in self.conf.items():
             f.write("%s=%s\n" % (key, value))
             
 ### Serial Interface and ISP protocol ###
@@ -268,7 +270,7 @@ class Serial(object):
         # attribute error
         try:
             self.close()
-        except AttributeError, e:
+        except AttributeError as e:
             pass
 
     def close(self):
@@ -305,7 +307,7 @@ class Serial(object):
         self.set_timeout(timeout)
         while True:
             sin = self.read_char()
-            if sin == "":
+            if sin == b"":
                 raise IspTimeoutError("did not receive response from device")
             if sin in chars:
                 return sin        
@@ -346,14 +348,14 @@ class Serial(object):
         # buffer to overflow and result in retries and checksum
         # errors. To avoid this we flush out 1 byte at a time.
 
-        for i, ch in enumerate(str(string)):
-            self.serial.write(ch)
+        for i, ch in enumerate(bytes(string)):
+            self.serial.write(bytes([ch]))
             self.serial.flush()
             
         self.serial.flush()
 
         if self.eavesdrop_func:
-            self.eavesdrop_func("out", str(string))        
+            self.eavesdrop_func("out", bytes(string))        
 
     def set_dtr(self, val):
         """Sets or clears the DTR line of the serial device.
@@ -383,7 +385,7 @@ class SimMicro(object):
         pass
 
     def reset(self, isp):
-        print "reseting isp=%s" % isp
+        print ("reseting isp=%s" % isp)
 
     def retry(self, tries, func, args):
         return func(*args)
@@ -414,7 +416,7 @@ class SimMicro(object):
         SimMicro.r = False
         SimMicro.x = False
         SimMicro.clock6 = False
-        print "Erase chip"
+        print ("Erase chip")
 
     def prog_status(self):
         pass
@@ -429,11 +431,11 @@ class SimMicro(object):
             SimMicro.r = r
         if x == True:
             SimMicro.x = x
-        print "Sec Bit (wrx): %s %s %s" % (w, r, x)
+        print ("Sec Bit (wrx): %s %s %s" % (w, r, x))
 
     def prog_clock6(self):
         SimMicro.clock6 = True
-        print "6 Clock"
+        print ("6 Clock")
 
     def prog_file(self, fname, complete_func=None):
         hex_file = HexFile(fname)
@@ -454,7 +456,7 @@ class SimMicro(object):
     def __getitem__(self, addr):
         try:
             return SimMicro.flash[addr]
-        except KeyError, e:
+        except KeyError as e:
             return 0xFF
 
 ### GUI and CLI Interface ###
@@ -465,7 +467,7 @@ def catch(func):
     def myfunc(self, *args, **kw):
         try:
             return func(self, *args, **kw)
-        except KeyboardInterrupt, e:
+        except KeyboardInterrupt as e:
             sys.exit(1)
         except:
             self.gexcept()
@@ -489,11 +491,11 @@ def catch_timeo(func):
     def myfunc(self, *args, **kw):
         try:
             return func(self, *args, **kw)
-        except IspTimeoutError, e:
+        except IspTimeoutError as e:
             self.gtimeo()
-        except IspChecksumError, e:
+        except IspChecksumError as e:
             self.gerror(str(e))
-        except IspProgError, e:
+        except IspProgError as e:
             self.gerror(str(e))
 
     return myfunc
@@ -531,9 +533,9 @@ class sobject(object):
         str -- message string to be displayed.
         """
         dialog = gtk.MessageDialog(self.gmap.main_win,
-                                   gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                   gtk.MESSAGE_INFO,
-                                   gtk.BUTTONS_OK,
+                                   gtk.DialogFlags.MODAL | gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                   gtk.MessageType.INFO,
+                                   gtk.ButtonsType.OK,
                                    str)
         dialog.run()
         dialog.destroy()
@@ -553,9 +555,9 @@ class sobject(object):
             parent = self.gmap.main_win
                     
         dialog = gtk.MessageDialog(parent,
-                                   gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                                   gtk.MESSAGE_ERROR,
-                                   gtk.BUTTONS_OK, str)
+                                   gtk.DialogFlags.MODAL | gtk.DialogFlags.DESTROY_WITH_PARENT,
+                                   gtk.MessageType.ERROR,
+                                   gtk.ButtonsType.OK, str)
         dialog.run()
         dialog.destroy()
 
@@ -594,9 +596,9 @@ class GladeMap(object):
     def __getattr__(self, name):
         """Allow widgets to be accessed as attributes of this class."""
         
-        w = self.xml.get_widget(name)
+        w = self.xml.get_object(name)
         if not w:
-            raise AttributeError, name
+            raise AttributeError(name)
         return w
 
 class Combo(sobject):
@@ -675,7 +677,9 @@ class ConfigCombo(Combo):
 
         Invoked on combobox entry changed.
         """
-        self.conf[self.key] = self.combo.get_active_text()
+        active = self.combo.get_active()
+        value = self.combo.get_model()[active][0]
+        self.conf[self.key] = value
         if self.cb:
             self.cb(self.cb_data)
 
@@ -707,7 +711,7 @@ class ConfigEntry(sobject):
         val = self.entry.get_text()
         try:
             self.conf[self.key] = val
-        except ValueError, e:
+        except ValueError as e:
             self.gerror("Invalid value for '%s'. '%s'." % (self.key, val))
             self.entry.set_text(str(self.conf[self.key]))
 
@@ -764,7 +768,7 @@ class SerialComboEntry(sobject):
             hal_obj = self.bus.get_object('org.freedesktop.Hal',
                                           '/org/freedesktop/Hal/Manager')
             self.hal = dbus.Interface(hal_obj, 'org.freedesktop.Hal.Manager')
-        except dbus.DBusException, e:
+        except dbus.DBusException as e:
             dbus_available = False
             
     def init_combo(self):
@@ -780,7 +784,7 @@ class SerialComboEntry(sobject):
         self.centry.add_attribute(comments, "text", 1)
           
         self.centry.set_model(self.store)
-        self.centry.set_text_column(0)
+        self.centry.set_entry_text_column(0)
 
         if dbus_available:
             self.hal.connect_to_signal("DeviceAdded", self.update)
@@ -809,7 +813,7 @@ class SerialComboEntry(sobject):
         path = 'HARDWARE\\DEVICEMAP\\SERIALCOMM'
         try:
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
-        except WindowsError, e:
+        except WindowsError as e:
             return serial_list
 
         for i in itertools.count():
@@ -819,7 +823,7 @@ class SerialComboEntry(sobject):
                 devname = str(val[0])
                 devname = devname.split("\\")[-1]
                 serial_list.append((comport, devname))
-            except WindowsError, e:
+            except WindowsError as e:
                 winreg.CloseKey(key)
                 return serial_list
             
@@ -835,7 +839,7 @@ class SerialComboEntry(sobject):
                 dev_obj = self.bus.get_object('org.freedesktop.Hal', udi)
                 dev = dbus.Interface(dev_obj, 'org.freedesktop.Hal.Device')
                 serial_list.append((dev.GetProperty('serial.device'), ""))
-            except dbus.DBusException, e:
+            except dbus.DBusException as e:
                 # There is a possibility of race over here.  If
                 # there is a device while we get the list, which
                 # disappears when we try to do a get_object,
@@ -861,7 +865,7 @@ class SerialComboEntry(sobject):
 
     def get_devicefile(self):
         """Returns the selected device file."""
-        return self.centry.child.get_text()
+        return self.centry.get_child().get_text()
 
 class StatusBar(sobject):
     def __init__(self, sb, gmap):
@@ -914,6 +918,7 @@ class Eavesdrop(sobject):
         either 'in' or 'out'.
         text -- the text to be appended.
         """
+        text = text.decode("utf-8")
         end_iter = self.textbuf.get_end_iter()
 
         # Gobble up the carriage returns, cause eavesdrop to look
@@ -942,10 +947,10 @@ class Eavesdrop(sobject):
         data = self.textbuf.get_text(start, end)
 
         try:
-            f = file(filename, "w")
+            f = open(filename, "w")
             f.write(data)
             f.close()
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Could not save eavesdrop to file %(filename)s: %(strerror)s", e)
 
     def clear(self):
@@ -965,7 +970,7 @@ class EraseList(sobject):
         self.treeview = treeview
 
         self.treesel = treeview.get_selection()
-        self.treesel.set_mode(gtk.SELECTION_MULTIPLE)
+        self.treesel.set_mode(gtk.SelectionMode.MULTIPLE)
 
         self.set_block_ranges(block_ranges)
 
@@ -1007,7 +1012,7 @@ class EraseList(sobject):
         return block_list
 
 class GuiApp(sobject):
-    printable = string.digits + string.letters + string.punctuation + " "
+    printable = string.digits + string.ascii_letters + string.punctuation + " "
 
     def __init__(self, conf):
         self.conf = conf
@@ -1015,15 +1020,17 @@ class GuiApp(sobject):
         # DBusGMainLoop(set_as_default=True)
 
         try:
-            from smashlib.resources import smash_glade
-            self.xml = gtk.glade.xml_new_from_buffer(smash_glade.data, len(smash_glade.data))
-        except ImportError, e:
+            from smashlib.resources import smash_ui
+            self.xml = gtk.Builder()
+            self.xml.add_from_string(smash_ui.data.decode("utf-8"))
+        except ImportError as e:
             self.gerror("Please check your installation. Auxillary file "
                         "required for execution of program is missing!",
                         no_parent = True)
             sys.exit(1)
+
             
-        self.xml.signal_autoconnect(self)
+        self.xml.connect_signals(self)
 
         self.gmap = GladeMap(self.xml)
 
@@ -1040,7 +1047,7 @@ class GuiApp(sobject):
         try:
             file(logo_fname, "w").write(logo_svg.data)
             pixbuf = gtk.gdk.pixbuf_new_from_file(logo_fname)
-        except Exception, e:
+        except Exception as e:
             pass
         os.remove(logo_fname)
         os.rmdir(logo_dname)
@@ -1157,7 +1164,7 @@ class GuiApp(sobject):
         hex_filename = self.gmap.hex_file_cbutton.get_filename()
         try:
             hex_file = HexFile(hex_filename)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Unable to open hex file %(filename)s: %(strerror)s", e)
             return
 
@@ -1165,7 +1172,7 @@ class GuiApp(sobject):
         block_ranges = micro_info[micro]["block_range"]
         try:
             blocks = hex_file.used_blocks(block_ranges)
-        except HexError, e:
+        except HexError as e:
             self.ghexerror("Error processing hex file %(filename)s at "
                            "lineno %(lineno)d: %(msg)s", e)
             return
@@ -1202,11 +1209,11 @@ class GuiApp(sobject):
 
         try:
             serial = Serial(serial_filename, sparams, self.eavesdrop.append_text)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.gerror("Unable to open serial device %s: %s"
                         % (serial_filename, e.strerror))
             return None
-        except xserial.SerialException, e:
+        except xserial.SerialException as e:
             self.gerror("Setting serial parameters failed: %s" % e.args[0])
             return None
 
@@ -1227,13 +1234,13 @@ class GuiApp(sobject):
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
             micro.sync_baudrate()
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Syncing baudrate failed: %(strerror)s", e)
             return None
 
         try:
             micro.set_osc_freq()
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Setting oscillator freq. failed: %(strerror)s", e)
             return None
 
@@ -1241,19 +1248,19 @@ class GuiApp(sobject):
 
     def verify(self, micro, hex_filename):
         """Check if the contents of the micro matches that of the file."""
-        
+
         self.update_program_pbar(0)
-        self.statusbar.set_text("Verifying ...")
+        self.statusbar.set_text("verifying ...")
 
         try:
             hfile = HexFile(hex_filename)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Opening %(filename)s for verification failed: %(strerror)s", e)
             return
 
         try:
             total = float(hfile.count_data_bytes())
-            
+
             for i, addr_data in enumerate(hfile.data_bytes()):
                 addr, data = addr_data
                 if micro[addr] != data:
@@ -1261,13 +1268,13 @@ class GuiApp(sobject):
                                 "Please try re-programming." % addr + i)
                     return
                 self.update_program_pbar((i+1) / total)
-        except HexError, e:
+        except HexError as e:
             self.ghexerror("Reading hex file %(filename)s failed "
                            "at lineno %(lineno)d", e);
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Reading/writing to device failed, during "
                           "verification: %(strerror)s", e)
-        except ProtoError, e:
+        except ProtoError as e:
             self.gerror("Protocol error occured during "
                         "verification: %s" % e.args[0])
 
@@ -1304,7 +1311,7 @@ class GuiApp(sobject):
             self.statusbar.set_text("Erasing block %d ..." % block)
             try:
                 micro.erase_block(block)
-            except (OSError, IOError), e:
+            except (OSError, IOError) as e:
                 self.goserror("Erasing block failed: %(strerror)s",
                               {"strerror": e})
                 return
@@ -1312,14 +1319,13 @@ class GuiApp(sobject):
         self.statusbar.set_text("Programming file ...")
         try:
             micro.prog_file(hex_filename, self.update_program_pbar)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Prog. file %(filename)s failed: %(strerror)s",
                           {"filename": hex_filename, "strerror": e})
             return
 
         # FIXME: There is no way to differentiate between serial I/O
         # error and File I/O error
-
         verify = self.gmap.verify_prog_check.get_active()
         if verify:
             self.verify(micro, hex_filename)
@@ -1486,9 +1492,9 @@ class GuiApp(sobject):
         cfname = config_filename
         try:
             self.conf.write(cfname)
-        except IOError, e:
+        except IOError as e:
             self.gerror("Error writing configuration: %s" % e)
-        except OSError, e:
+        except OSError as e:
             self.gerror("Error writing configuration: %s" % e)
 
     @catch
@@ -1496,9 +1502,9 @@ class GuiApp(sobject):
         cfname = config_filename
         try:
             self.conf.read(cfname)
-        except IOError, e:
+        except IOError as e:
             self.gerror("Error reading configuration: %s" % e)
-        except OSError, e:
+        except OSError as e:
             self.gerror("Error reading configuration: %s" % e)
         self.micro_combo.refresh()
 
@@ -1558,7 +1564,7 @@ class GuiApp(sobject):
 
     @catch
     def on_help_tlb_clicked(self, *args):
-        thread.start_new_thread(self.show_help, ())
+        _thread.start_new_thread(self.show_help, ())
         
     def on_about_tlb_clicked(self, *args):
         self.gmap.aboutdialog.run()
@@ -1572,14 +1578,14 @@ class GuiApp(sobject):
         start_addr = self.gmap.dump_start_entry.get_text()
         try:
             start_addr = int(start_addr, 0)
-        except ValueError, e:
+        except ValueError as e:
             self.gerror("Invalid start address '%s'." % start_addr)
             return
 
         end_addr = self.gmap.dump_end_entry.get_text()
         try:
             end_addr = int(end_addr, 0)
-        except ValueError, e:
+        except ValueError as e:
             self.gerror("Invalid end address '%s'." % end_addr)
             return
 
@@ -1618,10 +1624,10 @@ class GuiApp(sobject):
 
                 progress = (i + 1) / total_bytes
                 self.update_dump_pbar(progress)
-        except ProtoError, e:
+        except ProtoError as e:
             self.gerror("Protocol Error: %s" % e.args[0])
             return
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             self.goserror("Reading data from flash failed: %(strerror)s", e)
             return
 
@@ -1710,11 +1716,11 @@ class CmdApp(object):
 
         try:
             serial = Serial(serial_filename, sparams)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             error("unable to open serail device '%s': %s"
                   % (serial_filename, e.strerror))
             sys.exit(1)
-        except xserial.SerialException, e:
+        except xserial.SerialException as e:
             error("setting serial parameters failed: %s" % e.args[0])
             sys.exit(1)
 
@@ -1735,13 +1741,13 @@ class CmdApp(object):
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
             micro.sync_baudrate()
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             error("syncing baudrate failed: %s" % e.strerror)
             sys.exit(1)
 
         try:
             micro.set_osc_freq()
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             error("setting oscillator freq. failed: %s" % e.strerror)
             sys.exit(1)
 
@@ -1757,11 +1763,11 @@ class CmdApp(object):
                 try:
                     micro.erase_block(b)
                     pbar((i + 1) / nblocks)
-                except (OSError, IOError), e:
+                except (OSError, IOError) as e:
                     qprint("\n")
                     error("erasing block failed: %s", e.strerror)
                     sys.exit(1)
-                except ValueError, e:
+                except ValueError as e:
                     qprint("\n")
                     error("invalid erase block: %d", b)
                     sys.exit(1)
@@ -1777,7 +1783,7 @@ class CmdApp(object):
         """
         try:
             hex_file = HexFile(hex_filename)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             error("opening file %s failed: %s" % (hex_filename, e.strerror))
             sys.exit(1)
 
@@ -1785,7 +1791,7 @@ class CmdApp(object):
         block_ranges = micro_info[mtype]["block_range"]
         try:
             blocks = hex_file.used_blocks(block_ranges)
-        except HexError, e:
+        except HexError as e:
             error("error processing hex file %s at lineno %d: %s"
                   % (e.filename, e.lineno, e.msg))
             sys.exit(1)
@@ -1805,12 +1811,12 @@ class CmdApp(object):
         try:
             try:
                 micro.prog_file(hex_filename, pbar)
-            except (OSError, IOError), e:
+            except (OSError, IOError) as e:
                 qprint("\n")
                 error("programming file %s failed: %s",
                       hex_filename, e.strerror)
                 sys.exit(1)
-            except HexError, e:
+            except HexError as e:
                 qprint("\n")
                 error("error processing hex file %s at lineno %d: %s"
                       % (e.filename, e.lineno, e.msg))                
@@ -1826,9 +1832,10 @@ class CmdApp(object):
         hex_filename -- the hex file's filename against which the
         content is to be verified.
         """
+        
         try:
             hfile = HexFile(hex_filename)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             error("opening %s for verification failed: %s", e.filename)                
             sys.exit(1)
 
@@ -1846,15 +1853,15 @@ class CmdApp(object):
                         error("verify failed at %x" % addr)
                         sys.exit(1)
                     pbar((i+1) / total)
-            except HexError, e:
+            except HexError as e:
                 qprint("\n")
                 error("reading hex file %s failed "
                       "at lineno %d" % (e.filename, e.lineo));
-            except (OSError, IOError), e:
+            except (OSError, IOError) as e:
                 qprint("\n")
                 error("reading/writing to device failed, during "
                       "verification: %s", e.strerror)
-            except ProtoError, e:
+            except ProtoError as e:
                 qprint("\n")
                 error("protocol error occured during "
                       "verification: %s", e.args[0])
@@ -1871,21 +1878,21 @@ class CmdApp(object):
             else:
                 return "No"
             
-        print "Write Protected:", bool2str(w)
-        print "Read Protected:", bool2str(r)
-        print "External Execution Inhibited:", bool2str(x)
-        print "Parallel Program Inhibited:", bool2str(x)
-        print "Clock Mode:",
+        print ("Write Protected:", bool2str(w))
+        print ("Read Protected:", bool2str(r))
+        print ("External Execution Inhibited:", bool2str(x))
+        print ("Parallel Program Inhibited:", bool2str(x))
+        print ("Clock Mode:")
         if clock6:
-            print "6x"
+            print ("6x")
         else:
-            print "12x"
+            print ("12x")
             
     def parse_blocks(self, block_list):
         blocks = block_list.split(",")
         try:
             blocks = [int(b) for b in blocks]
-        except ValueError, e:
+        except ValueError as e:
             error("invalid block no. %s" % b)
         return blocks
 
@@ -1944,16 +1951,16 @@ class CmdApp(object):
         
         try:
             self.do_isp()
-        except IspTimeoutError, e:
+        except IspTimeoutError as e:
             error(timeo_msg)
             sys.exit(1)
-        except IspChecksumError, e:
+        except IspChecksumError as e:
             error(str(e))
             sys.exit(1)
-        except IspProgError, e:
+        except IspProgError as e:
             error(str(e))
             sys.exit(1)
-        except KeyboardInterrupt, e:
+        except KeyboardInterrupt as e:
             sys.exit(1)
 
 def init_opt_parser(conf):
@@ -2034,13 +2041,13 @@ def main_cli():
     cfname = config_filename
     try:
         conf.read(cfname)
-    except ValueError, e:
+    except ValueError as e:
         error("error parsing '%s': %s" % (cfname, e.args[0]))
         sys.exit(1)
-    except ConfigParser.ParsingError, e:
+    except configparser.ParsingError as e:
         error("parsing config file '%s' failed: %s" % (cfname, e.args[0]))
         sys.exit(1)
-    except ConfigParser.MissingSectionHeaderError, e:
+    except configparser.MissingSectionHeaderError as e:
         error("section header not present in file '%s': %s" % (cfname, e.args[0]))
         sys.exit(1)
 
@@ -2054,7 +2061,7 @@ def main_cli():
         conf["osc-freq"] = options.freq
         conf["bps"] = options.bps
         conf["auto-isp"] = options.auto_isp
-    except ValueError, e:
+    except ValueError as e:
         parser.error(e.args[0])
 
     if options.quiet:
@@ -2078,17 +2085,17 @@ def main_gui():
             error("cannot connect to X server")
         sys.exit(1)
 
-    gtk.threads_init()
+    gobject.threads_init()
 
     conf = Config()
     cfname = config_filename
     try:
         conf.read(cfname)
-    except ValueError, e:
+    except ValueError as e:
         gerror("error parsing '%s': %s" % (cfname, e.args[0]))
-    except ConfigParser.ParsingError, e:
+    except configparser.ParsingError as e:
         gerror("parsing config file '%s' failed: %s" % (cfname, e.args[0]))
-    except ConfigParser.MissingSectionHeaderError, e:
+    except configparser.MissingSectionHeaderError as e:
         gerror("section header not present in file '%s': %s" % (cfname, e.args[0]))
 
     app = GuiApp(conf)
