@@ -41,6 +41,7 @@ try:
     gi.require_version("Gtk", "3.0")
     #import pygtk
     from gi.repository import Gtk as gtk
+    from gi.repository import GdkPixbuf  # Gdk module/class is not in python3
     from gi.repository import GObject as gobject
     from gi.repository import Pango as pango
 except ImportError as e:
@@ -70,6 +71,7 @@ from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 from .micro import micro_info
 from .p89v66x import P89V66x
 from .p89v51rx2 import P89V51Rx2
+from .sam7s import Sam7S
 
 __version__ = "1.13.0"
 
@@ -133,7 +135,7 @@ class Config(object):
             "bps":        ConfigInfo(int, int, Config.bps_allowed, 9600),
             "auto-isp":   ConfigInfo(Config.boolean, bool, None, False),
         }
-        
+
         defaults = dict([ (key, value.default)
                           for key, value in self.config_info.items() ])
 
@@ -327,7 +329,7 @@ class Serial(object):
         data = self.serial.read(size)
         if self.eavesdrop_func:
             self.eavesdrop_func("in", data)
-        return data        
+        return data
 
     def set_eavesdropper(self, func):
         self.eavesdrop_func = func        
@@ -355,7 +357,7 @@ class Serial(object):
         self.serial.flush()
 
         if self.eavesdrop_func:
-            self.eavesdrop_func("out", bytes(string))        
+            self.eavesdrop_func("out", bytes(string))
 
     def set_dtr(self, val):
         """Sets or clears the DTR line of the serial device.
@@ -439,7 +441,6 @@ class SimMicro(object):
 
     def prog_file(self, fname, complete_func=None):
         hex_file = HexFile(fname)
-
         count = float(hex_file.count_data_bytes())
         complete_func(0)
         i = 0;
@@ -907,6 +908,8 @@ class Eavesdrop(sobject):
         self.textbuf = textview.get_buffer()
 
         self.lastdirection = "out"
+        # To avoid UnoundLocalError in append_text function
+        self.last_inserted = None
         self.textbuf.create_tag("in", foreground="red")
         self.textbuf.create_tag("out", foreground="blue")
 
@@ -918,7 +921,9 @@ class Eavesdrop(sobject):
         either 'in' or 'out'.
         text -- the text to be appended.
         """
-        text = text.decode("utf-8")
+        # In xmodem protocol , first three bytes are header and
+        # last two bytes are checksum
+        text = text[3:-2].decode("utf-8")
         end_iter = self.textbuf.get_end_iter()
 
         # Gobble up the carriage returns, cause eavesdrop to look
@@ -929,10 +934,10 @@ class Eavesdrop(sobject):
 
         if self.lastdirection != direction and self.last_inserted != "\n":
             self.textbuf.insert(end_iter, "\n")
-            
+
         self.textbuf.insert_with_tags_by_name(end_iter, text, direction)
 
-        self.lastdirection = direction 
+        self.lastdirection = direction
         self.last_inserted = text[-1:]
 
     def saveas(self, filename):
@@ -1045,10 +1050,12 @@ class GuiApp(sobject):
         logo_fname = os.path.join(logo_dname, "logo.svg")
         pixbuf = None
         try:
-            file(logo_fname, "w").write(logo_svg.data)
-            pixbuf = gtk.gdk.pixbuf_new_from_file(logo_fname)
+            with open(logo_fname, "wb") as fd:
+                fd.write(logo_svg.data)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(logo_fname)
         except Exception as e:
             pass
+
         os.remove(logo_fname)
         os.rmdir(logo_dname)
         
@@ -1260,7 +1267,6 @@ class GuiApp(sobject):
 
         try:
             total = float(hfile.count_data_bytes())
-
             for i, addr_data in enumerate(hfile.data_bytes()):
                 addr, data = addr_data
                 if micro[addr] != data:
@@ -1287,7 +1293,7 @@ class GuiApp(sobject):
         Called when the program button is clicked.
         """
         self.update_program_pbar(0)
-                
+
         hex_filename = self.gmap.hex_file_cbutton.get_filename()
         if not hex_filename:
             self.gerror("Hex file not selected")
@@ -1299,13 +1305,13 @@ class GuiApp(sobject):
             block_list = self.erase_list.get_selected_blocks()
 
         serial = self.serial_setup()
-        if serial == None:
+        if serial is None:
             return
 
         micro = self.micro_setup(serial)
-        if micro == None:
+        if micro is None:
             return
-            
+
         self.statusbar.set_text("Erasing ...")
         for block in block_list:
             self.statusbar.set_text("Erasing block %d ..." % block)
@@ -1315,7 +1321,6 @@ class GuiApp(sobject):
                 self.goserror("Erasing block failed: %(strerror)s",
                               {"strerror": e})
                 return
-
         self.statusbar.set_text("Programming file ...")
         try:
             micro.prog_file(hex_filename, self.update_program_pbar)
