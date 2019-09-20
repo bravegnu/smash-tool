@@ -45,6 +45,7 @@ class HexBlankCheck(Hex):
         Raises:
         ValueError -- if start or end is invalid
         """
+        print("__init__ start")
         if start & 0xFFFF != start:
             raise ValueError("check start address 0x%x out of range" % start)
         elif end & 0xFFFF != end:
