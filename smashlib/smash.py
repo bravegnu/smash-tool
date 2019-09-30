@@ -41,6 +41,7 @@ try:
     gi.require_version("Gtk", "3.0")
     #import pygtk
     from gi.repository import Gtk as gtk
+    from gi.repository import GdkPixbuf
     from gi.repository import GObject as gobject
     from gi.repository import Pango as pango
 except ImportError as e:
@@ -70,6 +71,8 @@ from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 from .micro import micro_info
 from .p89v66x import P89V66x
 from .p89v51rx2 import P89V51Rx2
+from .lpc17xx import LPC17xx
+from .binfile import BinFile
 
 __version__ = "1.13.0"
 
@@ -310,7 +313,7 @@ class Serial(object):
             if sin == b"":
                 raise IspTimeoutError("did not receive response from device")
             if sin in chars:
-                return sin        
+                return sin
 
     def read_timeo(self, size, timeout=1):
         """Read a block of size specified from the serial port.
@@ -325,14 +328,15 @@ class Serial(object):
         """
         self.set_timeout(timeout)
         data = self.serial.read(size)
+
         if self.eavesdrop_func:
             self.eavesdrop_func("in", data)
-        return data        
+        return data
 
     def set_eavesdropper(self, func):
-        self.eavesdrop_func = func        
+        self.eavesdrop_func = func
 
-    def write(self, string):
+    def write(self, string, file_type="hex"):
         """Write string to serial device.
 
         Args:
@@ -347,13 +351,14 @@ class Serial(object):
         # Writing huge chunks of data to it can cause the micro's
         # buffer to overflow and result in retries and checksum
         # errors. To avoid this we flush out 1 byte at a time.
+        if file_type == "hex":
+            for i, ch in enumerate(bytes(string)):
+                self.serial.write(bytes([ch]))
+                self.serial.flush()
+        elif file_type == "bin":
+            self.serial.write(string)
 
-        for i, ch in enumerate(bytes(string)):
-            self.serial.write(bytes([ch]))
-            self.serial.flush()
-            
         self.serial.flush()
-
         if self.eavesdrop_func:
             self.eavesdrop_func("out", bytes(string))        
 
@@ -526,7 +531,7 @@ class sobject(object):
         self.gmap.exc_dialog.run()
         self.gmap.exc_dialog.hide()
 
-    def gmesg(self, str):
+    def gmesg(self, string):
         """Display a info message dialog.
 
         Args:
@@ -536,11 +541,11 @@ class sobject(object):
                                    gtk.DialogFlags.MODAL | gtk.DialogFlags.DESTROY_WITH_PARENT,
                                    gtk.MessageType.INFO,
                                    gtk.ButtonsType.OK,
-                                   str)
+                                   string)
         dialog.run()
         dialog.destroy()
 
-    def gerror(self, str, no_parent = False):
+    def gerror(self, string, no_parent = False):
         """Display a error message dialog.
 
         Args:
@@ -557,7 +562,7 @@ class sobject(object):
         dialog = gtk.MessageDialog(parent,
                                    gtk.DialogFlags.MODAL | gtk.DialogFlags.DESTROY_WITH_PARENT,
                                    gtk.MessageType.ERROR,
-                                   gtk.ButtonsType.OK, str)
+                                   gtk.ButtonsType.OK, string)
         dialog.run()
         dialog.destroy()
 
@@ -1045,8 +1050,9 @@ class GuiApp(sobject):
         logo_fname = os.path.join(logo_dname, "logo.svg")
         pixbuf = None
         try:
-            file(logo_fname, "w").write(logo_svg.data)
-            pixbuf = gtk.gdk.pixbuf_new_from_file(logo_fname)
+            with open(logo_fname, "wb") as fd:
+                fd.write(logo_svg.data)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(logo_fname)
         except Exception as e:
             pass
         os.remove(logo_fname)
@@ -1101,6 +1107,7 @@ class GuiApp(sobject):
         hfilt.set_name("Intel Hex Files (*.hex, *.ihx)")
         hfilt.add_pattern("*.hex")
         hfilt.add_pattern("*.ihx")
+        hfilt.add_pattern("*.bin")
 
         afilt = gtk.FileFilter()
         afilt.set_name("All Files (*)")
@@ -1161,9 +1168,9 @@ class GuiApp(sobject):
         """
         self.erase_list.unselect_all()
 
-        hex_filename = self.gmap.hex_file_cbutton.get_filename()
+        filename = self.gmap.hex_file_cbutton.get_filename()
         try:
-            hex_file = HexFile(hex_filename)
+            hex_file = HexFile(filename)
         except (OSError, IOError) as e:
             self.goserror("Unable to open hex file %(filename)s: %(strerror)s", e)
             return
@@ -1210,8 +1217,8 @@ class GuiApp(sobject):
         try:
             serial = Serial(serial_filename, sparams, self.eavesdrop.append_text)
         except (OSError, IOError) as e:
-            self.gerror("Unable to open serial device %s: %s"
-                        % (serial_filename, e.strerror))
+            self.goserror("Unable to open serial device %s: %s"
+                        % (serial_filename, e.strerror), e)
             return None
         except xserial.SerialException as e:
             self.gerror("Setting serial parameters failed: %s" % e.args[0])
@@ -1230,6 +1237,7 @@ class GuiApp(sobject):
 
         cls = micro_info[self.conf["type"]]["class"]
         micro = cls(self.conf["type"], self.conf["osc-freq"], serial)
+
         try:
             if self.conf["auto-isp"]:
                 micro.reset(isp=1)
@@ -1246,14 +1254,16 @@ class GuiApp(sobject):
 
         return micro
 
-    def verify(self, micro, hex_filename):
+    def verify(self, micro, filename):
         """Check if the contents of the micro matches that of the file."""
-
         self.update_program_pbar(0)
-        self.statusbar.set_text("verifying ...")
+        self.statusbar.set_text("Verifying ...")
 
         try:
-            hfile = HexFile(hex_filename)
+            if filename.endswith(".hex") or filename.endswith(".ihx"):
+                hfile = HexFile(filename)
+            elif filename.endswith(".bin"):
+                hfile = BinFile(filename)
         except (OSError, IOError) as e:
             self.goserror("Opening %(filename)s for verification failed: %(strerror)s", e)
             return
@@ -1261,13 +1271,16 @@ class GuiApp(sobject):
         try:
             total = float(hfile.count_data_bytes())
 
-            for i, addr_data in enumerate(hfile.data_bytes()):
-                addr, data = addr_data
-                if micro[addr] != data:
-                    self.gerror("Verify failed at %x! "
-                                "Please try re-programming." % addr + i)
-                    return
-                self.update_program_pbar((i+1) / total)
+            if filename.endswith(".hex") or filename.endswith(".ihx"):
+                for i, addr_data in enumerate(hfile.data_bytes()):
+                    addr, data = addr_data
+                    if micro[addr] != data:
+                        self.gerror("Verify failed at %x! "
+                                    "Please try re-programming." % addr + i)
+                        return
+                    self.update_program_pbar((i+1) / total)
+            elif filename.endswith(".bin"):
+                micro.verify_program(filename, self.gerror, self.update_program_pbar)
         except HexError as e:
             self.ghexerror("Reading hex file %(filename)s failed "
                            "at lineno %(lineno)d", e);
@@ -1287,9 +1300,9 @@ class GuiApp(sobject):
         Called when the program button is clicked.
         """
         self.update_program_pbar(0)
-                
-        hex_filename = self.gmap.hex_file_cbutton.get_filename()
-        if not hex_filename:
+
+        filename = self.gmap.hex_file_cbutton.get_filename()
+        if not filename:
             self.gerror("Hex file not selected")
             return
 
@@ -1307,28 +1320,38 @@ class GuiApp(sobject):
             return
             
         self.statusbar.set_text("Erasing ...")
-        for block in block_list:
-            self.statusbar.set_text("Erasing block %d ..." % block)
+        if filename.endswith(".hex") or filename.endswith(".ihx"):
+            for block in block_list:
+                self.statusbar.set_text("Erasing block %d ..." % block)
+                try:
+                    micro.erase_block(block)
+                except (OSError, IOError) as e:
+                    self.goserror("Erasing block failed: %(strerror)s",
+                                  {"strerror": e})
+                    return
+        elif filename.endswith(".bin"):
             try:
-                micro.erase_block(block)
+                if block_list:
+                    micro.erase_blocklist(block_list)
+                else:
+                    micro.erase_block(filename)
             except (OSError, IOError) as e:
-                self.goserror("Erasing block failed: %(strerror)s",
-                              {"strerror": e})
-                return
+                self.goserror("Erasing Blocks failed: %(strerror)s", e)
+                return None
 
         self.statusbar.set_text("Programming file ...")
         try:
-            micro.prog_file(hex_filename, self.update_program_pbar)
+            micro.prog_file(filename, self.update_program_pbar)
         except (OSError, IOError) as e:
             self.goserror("Prog. file %(filename)s failed: %(strerror)s",
-                          {"filename": hex_filename, "strerror": e})
+                          {"filename": filename, "strerror": e})
             return
 
         # FIXME: There is no way to differentiate between serial I/O
         # error and File I/O error
         verify = self.gmap.verify_prog_check.get_active()
         if verify:
-            self.verify(micro, hex_filename)
+            self.verify(micro, filename)
 
         if self.conf["auto-isp"]:
             micro.reset(isp=0)
@@ -1774,17 +1797,25 @@ class CmdApp(object):
         finally:
             qprint("\n")
 
-    def erase(self, micro, hex_filename):
+    def erase(self, micro, filename):
         """Erase the flash blocks that are used by the file.
         
         Args:
         micro -- the Micro object whose contents are to be erased.
-        hex_filename -- the hex file whose data is to be flashed.
+        filename -- the selected file whose data is to be flashed.
         """
+        if filename.endswith(".bin"):
+            try:
+                micro.erase_block(filename)
+            except (OSError, IOError) as e:
+                error("Erasing Blocks failed: %s", e.strerror)
+                sys.exit(1)
+            return
+
         try:
-            hex_file = HexFile(hex_filename)
+            hex_file = HexFile(filename)
         except (OSError, IOError) as e:
-            error("opening file %s failed: %s" % (hex_filename, e.strerror))
+            error("opening file %s failed: %s" % (filename, e.strerror))
             sys.exit(1)
 
         mtype = self.conf["type"]
@@ -1798,23 +1829,22 @@ class CmdApp(object):
 
         self.erase_progress(micro, blocks)
 
-    def program(self, micro, hex_filename):
+    def program(self, micro, filename):
         """Program data from hex file into micro's flash.
 
         Args:
         micro -- the Micro object in which the data is to be flashed.
-        hex_filename -- the hex file's filename whose data is to be flashed.
+        filename -- the selected file's filename whose data is to be flashed.
         """
         pbar = CmdProgressBar(40, "Program: ")
         pbar(0)
-
         try:
             try:
-                micro.prog_file(hex_filename, pbar)
+                micro.prog_file(filename, pbar)
             except (OSError, IOError) as e:
                 qprint("\n")
                 error("programming file %s failed: %s",
-                      hex_filename, e.strerror)
+                      filename, e.strerror)
                 sys.exit(1)
             except HexError as e:
                 qprint("\n")
@@ -1824,17 +1854,20 @@ class CmdApp(object):
         finally:
             qprint("\n")
 
-    def verify(self, micro, hex_filename):
+    def verify(self, micro, filename):
         """Verify the contents of flash against a hex file.
 
         Args:
         micro -- the Micro object whose contents are to be verified.
-        hex_filename -- the hex file's filename against which the
+        filename -- the selected file's filename against which the
         content is to be verified.
         """
         
         try:
-            hfile = HexFile(hex_filename)
+            if filename.endswith(".hex") or filename.endswith(".ihx"):
+                hfile = HexFile(filename)
+            elif filename.endswith(".bin"):
+                hfile = BinFile(filename)
         except (OSError, IOError) as e:
             error("opening %s for verification failed: %s", e.filename)                
             sys.exit(1)
@@ -1846,13 +1879,16 @@ class CmdApp(object):
             try:
                 total = float(hfile.count_data_bytes())
 
-                for i, addr_data in enumerate(hfile.data_bytes()):
-                    addr, data = addr_data
-                    if micro[addr] != data:
-                        qprint("\n")
-                        error("verify failed at %x" % addr)
-                        sys.exit(1)
-                    pbar((i+1) / total)
+                if filename.endswith(".hex") or filename.endswith(".ihx"):
+                    for i, addr_data in enumerate(hfile.data_bytes()):
+                        addr, data = addr_data
+                        if micro[addr] != data:
+                            qprint("\n")
+                            error("verify failed at %x" % addr)
+                            sys.exit(1)
+                        pbar((i+1) / total)
+                elif filename.endswith(".bin"):
+                    micro.verify_program(filename, error, pbar)
             except HexError as e:
                 qprint("\n")
                 error("reading hex file %s failed "
