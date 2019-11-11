@@ -72,6 +72,8 @@ from .micro import micro_info
 from .p89v66x import P89V66x
 from .p89v51rx2 import P89V51Rx2
 from .lpc17xx import LPC17xx
+from .lpc13xx import LPC13xx
+from .lpc111x import LPC111x
 from .binfile import BinFile
 
 __version__ = "1.13.0"
@@ -283,6 +285,12 @@ class Serial(object):
     def set_timeout(self, timeout):
         self.serial.timeout = timeout
 
+    def clear_input_buffer(self):
+        self.serial.reset_input_buffer()
+
+    def clear_output_buffer(self):
+        self.serial.reset_output_buffer()
+
     def read_char(self):
         """Read and return a character from serial device.
 
@@ -336,7 +344,7 @@ class Serial(object):
     def set_eavesdropper(self, func):
         self.eavesdrop_func = func
 
-    def write(self, string, file_type="hex"):
+    def write(self, string):
         """Write string to serial device.
 
         Args:
@@ -351,13 +359,10 @@ class Serial(object):
         # Writing huge chunks of data to it can cause the micro's
         # buffer to overflow and result in retries and checksum
         # errors. To avoid this we flush out 1 byte at a time.
-        if file_type == "hex":
-            for i, ch in enumerate(bytes(string)):
-                self.serial.write(bytes([ch]))
-                self.serial.flush()
-        elif file_type == "bin":
-            self.serial.write(string)
-
+        for i, ch in enumerate(bytes(string)):
+            self.serial.write(bytes([ch]))
+            #self.serial.flush()
+        #self.serial.write(string)
         self.serial.flush()
         if self.eavesdrop_func:
             self.eavesdrop_func("out", bytes(string))        
@@ -369,6 +374,7 @@ class Serial(object):
         OSError, IOError -- if setting the DTR line fails.
         """
         self.serial.setDTR(val)
+        print("setdtr")
 
     def set_rts(self, val):
         """Sets or clears the RTS line of the serial device.
@@ -377,6 +383,7 @@ class Serial(object):
         OSError, IOError -- if setting the RTS line fails.
         """
         self.serial.setRTS(val)
+        print("setrts")
 
 class SimMicro(object):
     flash = {}
@@ -1170,7 +1177,10 @@ class GuiApp(sobject):
 
         filename = self.gmap.hex_file_cbutton.get_filename()
         try:
-            hex_file = HexFile(filename)
+            if filename.endswith(".hex") or filename.endswith(".ihx"):
+                hfile = HexFile(filename)
+            elif filename.endswith(".bin"):
+                hfile = BinFile(filename)
         except (OSError, IOError) as e:
             self.goserror("Unable to open hex file %(filename)s: %(strerror)s", e)
             return
@@ -1178,7 +1188,7 @@ class GuiApp(sobject):
         micro = self.conf["type"]
         block_ranges = micro_info[micro]["block_range"]
         try:
-            blocks = hex_file.used_blocks(block_ranges)
+            blocks = hfile.used_blocks(block_ranges)
         except HexError as e:
             self.ghexerror("Error processing hex file %(filename)s at "
                            "lineno %(lineno)d: %(msg)s", e)
@@ -1320,24 +1330,14 @@ class GuiApp(sobject):
             return
             
         self.statusbar.set_text("Erasing ...")
-        if filename.endswith(".hex") or filename.endswith(".ihx"):
-            for block in block_list:
-                self.statusbar.set_text("Erasing block %d ..." % block)
-                try:
-                    micro.erase_block(block)
-                except (OSError, IOError) as e:
-                    self.goserror("Erasing block failed: %(strerror)s",
-                                  {"strerror": e})
-                    return
-        elif filename.endswith(".bin"):
+        for block in block_list:
+            self.statusbar.set_text("Erasing block %d ..." % block)
             try:
-                if block_list:
-                    micro.erase_blocklist(block_list)
-                else:
-                    micro.erase_block(filename)
+                micro.erase_block(block)
             except (OSError, IOError) as e:
-                self.goserror("Erasing Blocks failed: %(strerror)s", e)
-                return None
+                self.goserror("Erasing block failed: %(strerror)s",
+                                {"strerror": e})
+                return
 
         self.statusbar.set_text("Programming file ...")
         try:
@@ -1804,16 +1804,11 @@ class CmdApp(object):
         micro -- the Micro object whose contents are to be erased.
         filename -- the selected file whose data is to be flashed.
         """
-        if filename.endswith(".bin"):
-            try:
-                micro.erase_block(filename)
-            except (OSError, IOError) as e:
-                error("Erasing Blocks failed: %s", e.strerror)
-                sys.exit(1)
-            return
-
         try:
-            hex_file = HexFile(filename)
+            if filename.endswith(".hex") or filename.endswith(".ihx"):
+                hfile = HexFile(filename)
+            elif filename.endswith(".bin"):
+                hfile = BinFile(filename)
         except (OSError, IOError) as e:
             error("opening file %s failed: %s" % (filename, e.strerror))
             sys.exit(1)
@@ -1821,7 +1816,7 @@ class CmdApp(object):
         mtype = self.conf["type"]
         block_ranges = micro_info[mtype]["block_range"]
         try:
-            blocks = hex_file.used_blocks(block_ranges)
+            blocks = hfile.used_blocks(block_ranges)
         except HexError as e:
             error("error processing hex file %s at lineno %d: %s"
                   % (e.filename, e.lineno, e.msg))

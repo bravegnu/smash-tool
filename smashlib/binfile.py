@@ -1,5 +1,6 @@
 ### Bin File Parsing ###
 import os
+from .hexfile import HexError
 
 class BinFile(object):
     def __init__(self, filename, addr = 0x0):
@@ -7,6 +8,7 @@ class BinFile(object):
         self.len_data = os.path.getsize(filename)
         self.count = 0
         self.start_addr = addr
+        self.end_addr = addr + self.len_data
 
     def __iter__(self):
         return self
@@ -21,9 +23,34 @@ class BinFile(object):
         return self.len_data
 
     def data_bytes(self):
-        try:
-            for byte in self:
-                yield (self.start_addr, byte)
-                self.start_addr += 1
-        except Exception as e:
-            raise e
+        addr = self.start_addr
+        for byte in self:
+            yield (addr, byte)
+            addr += 1
+
+    def used_blocks(self, block_ranges):
+        blocks = []
+        sblock = eblock = None
+
+        for i, br in enumerate(block_ranges):
+            if self.start_addr >= br[0] and self.start_addr <= br[1]:
+                sblock = i
+                break
+
+        if sblock is None:
+            raise HexError("address out of device address range",
+                            self.binfile.name, i)
+
+        for i, br in enumerate(block_ranges):
+            if self.end_addr >= br[0] and self.end_addr <= br[1]:
+                eblock = i
+                break
+
+        if eblock is None:
+            raise HexError("address out of device address range",
+                            self.binfile.name, i)
+
+        for b in range(sblock, eblock + 1):
+            blocks.append(b)
+
+        return blocks
