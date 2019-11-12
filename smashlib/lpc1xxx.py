@@ -1,4 +1,4 @@
-"""LPC1114 FLASH MEMORY PROGRAMMING FIRMWARE"""
+"""LPC1343 FLASH MEMORY PROGRAMMING FIRMWARE"""
 import os
 import time
 import binascii
@@ -9,7 +9,7 @@ from .micro import micro_info
 from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 from .binfile import BinFile
 
-class LPC111x(object):
+class LPC1xxx(object):
     def __init__(self, micro, freq, serial):
         self.micro = micro
         self.freq = freq
@@ -17,7 +17,6 @@ class LPC111x(object):
         self.data_dict = {}
         self.sector_used = 0
         self.start_sector = 0
-        self.end_sector = 0
         self.flash_addr = 0x0
         self.clear_stats()
 
@@ -56,14 +55,14 @@ class LPC111x(object):
         self.serial.write(cmd + b"\r\n")
         if expected:
             expected += b"\r\n"
-            cmd += b"\r\n"
+            cmd += b"\r"
         else:
             cmd += b"\r\n"
 
         self.serial.clear_input_buffer()
         resp = self.serial.read_timeo(len(cmd) + len(expected))
 
-        if resp != (cmd + expected) and resp != (cmd + b"\n" + expected):
+        if resp != (cmd + expected) and resp != (cmd + b"\n" + expected)
             logging.basicConfig(filename='smash.log', filemode='w',
                                 format='%(asctime)s-%(process)s-%(levelname)s\n%(message)s')
             logging.error(" Cmmd>{}\n Expt>{}\n Resp>{}\n".format(cmd, cmd + expected, resp))
@@ -85,16 +84,39 @@ class LPC111x(object):
     def sync_baudrate(self):
         self.retry(8, self._sync_baudrate, ())
 
+    def _set_reset(self, val):
+        self.serial.set_dtr(val)
+
+    def _set_psen(self, val):
+        self.serial.set_rts(val)
+
     def reset(self, isp):
-        pass
+        """RESET the Microcontroller"""
+        if isp == 1:
+            self._set_psen(1)
+            time.sleep(0.1)
+            self._set_reset(1)
+            time.sleep(0.1)
+            self._set_reset(0)
+            time.sleep(0.1)
+        else:
+            self._set_psen(0)
+            time.sleep(0.1)
+            self._set_reset(1)
+            time.sleep(0.1)
+            self._set_reset(0)
+            time.sleep(0.1)
 
     def unlock_and_checkid(self):
         """To unlock erase, write commands and
         to check the device we are going to flash.
         U 23130 --> Used to unlock flash write and erase commands
         J --> is used to read the part identification number """
+
+        devid = micro_info[self.micro]["devid"]
+        
         self.write_and_expect(b"U 23130", b"0")
-        self.write_and_expect(b"J", b"0\r\n624955435")
+        self.write_and_expect(b"J", b"0\r\n" + devid)
 
     def set_osc_freq(self):
         """To Set the CCLK frequency,
@@ -131,18 +153,19 @@ class LPC111x(object):
 
     def select_sector(self):
         """Select the Sectors for COPY command"""
-        sector_size = 4096
+        block_range = micro_info[self.micro]["block_range"]
+        block_info = block_range[self.start_sector]
+        sector_size = block_info[1] - block_info[0] + 1
 
         if self.sector_used == sector_size:
             self.start_sector += 1
-            self.end_sector += 1
             self.sector_used = 0
 
     def copy_to_sector(self, len_block, sram_addr):
         """To Copy from RAM to FLASH Memory"""
         while len_block > 0:
             self.sector_used += 256
-            cmd = ("P {} {}".format(self.start_sector, self.end_sector)).encode("ascii")
+            cmd = ("P {} {}".format(self.start_sector, self.start_sector)).encode("ascii")
             self.write_and_expect(cmd, b"0")
             cmd = ("C {} {} 256".format(self.flash_addr, sram_addr)).encode("ascii")
             self.write_and_expect(cmd, b"0")
@@ -197,10 +220,11 @@ class LPC111x(object):
                 self.write_and_expect(("{}".format(block_crc)).encode("ascii"), b"OK")
                 block_crc = 0
 
-            self.copy_to_sector(len(block), 0x10000300)
+            self.copy_to_sector(len(block), 0x10001000)
 
     def _update_cache_with_data(self, cmd):
         self.serial.write(cmd + b"\r\n")
+
         resp = self.serial.read_timeo(256)
         self.split_resp = resp.split(b"\r\n")
         self.bdata = binascii.a2b_uu(self.split_resp[-3][:-2])
@@ -256,12 +280,38 @@ common_sparams = {
 }
 
 micro_info.update({
+    "LPC1343" : {
+        "mfg": "NXP",
+        "block_range": ((0x0, 0xFFF), (0x1000, 0x1FFF), (0x2000, 0x2FFF), (0x3000, 0x3FFF),
+                        (0x4000, 0x4FFF), (0x5000, 0x5FFF), (0x6000, 0x6FFF), (0x7000, 0x7FFF)),
+        "sparams": common_sparams,
+        "class": LPC1xxx,
+        "security": ("CRP1", "CRP2", "CRP3")
+        "devid": 1023410219
+    },
     "LPC1114" : {
         "mfg": "NXP",
         "block_range": ((0x0, 0xFFF), (0x1000, 0x1FFF), (0x2000, 0x2FFF), (0x3000, 0x3FFF),
                         (0x4000, 0x4FFF), (0x5000, 0x5FFF), (0x6000, 0x6FFF), (0x7000, 0x7FFF)),
         "sparams": common_sparams,
-        "class": LPC111x,
+        "class": LPC1xxx,
         "security": ("CRP1", "CRP2", "CRP3")
+        "devid": 624955435
+    },
+    "LPC1769" : {
+        "mfg": "NXP",
+        "block_range": ((0x0, 0xFFF), (0x1000, 0x1FFF), (0x2000, 0x2FFF), (0x3000, 0x3FFF),
+                        (0x4000, 0x4FFF), (0x5000, 0x5FFF), (0x6000, 0x6FFF), (0x7000, 0x7FFF),
+                        (0x8000, 0x8FFF), (0x9000, 0x9FFF), (0xA000, 0xAFFF), (0xB000, 0xBFFF),
+                        (0xC000, 0xCFFF), (0xD000, 0xDFFF), (0xE000, 0xEFFF), (0xF000, 0xFFFF),
+                        (0x10000, 0x17FFF), (0x18000, 0x1FFFF), (0x20000, 0x27FFF),
+                        (0x28000, 0x2FFFF), (0x30000, 0x37FFF), (0x38000, 0x3FFFF),
+                        (0x40000, 0x47FFF), (0x48000, 0x4FFFF), (0x50000, 0x57FFF),
+                        (0x58000, 0x5FFFF), (0x60000, 0x67FFF), (0x68000, 0x6FFFF),
+                        (0x70000, 0x77FFF), (0x78000, 0x7FFFF)),
+        "sparams": common_sparams,
+        "class": LPC17xx,
+        "security": ("CRP1", "CRP2", "CRP3")
+        "devid": 638664503
         }
     })
