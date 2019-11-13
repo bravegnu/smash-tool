@@ -71,9 +71,7 @@ from .micro import ProtoError, IspTimeoutError, IspChecksumError, IspProgError
 from .micro import micro_info
 from .p89v66x import P89V66x
 from .p89v51rx2 import P89V51Rx2
-from .lpc17xx import LPC17xx
-from .lpc13xx import LPC13xx
-from .lpc111x import LPC111x
+from .lpc1xxx import LPC1xxx
 from .binfile import BinFile
 
 __version__ = "1.13.0"
@@ -374,7 +372,6 @@ class Serial(object):
         OSError, IOError -- if setting the DTR line fails.
         """
         self.serial.setDTR(val)
-        print("setdtr")
 
     def set_rts(self, val):
         """Sets or clears the RTS line of the serial device.
@@ -383,7 +380,6 @@ class Serial(object):
         OSError, IOError -- if setting the RTS line fails.
         """
         self.serial.setRTS(val)
-        print("setrts")
 
 class SimMicro(object):
     flash = {}
