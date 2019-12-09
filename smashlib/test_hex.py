@@ -1,8 +1,7 @@
 import io
 import unittest
-from unittest.mock import Mock
-from unittest.mock import patch
-from .hexfile import Hex, HexFile, HexError
+from unittest.mock import Mock, patch
+from hexfile import Hex, HexFile, HexError
 
 class SimpleTest(unittest.TestCase):
     def setUp(self):
@@ -50,7 +49,7 @@ class SimpleTest(unittest.TestCase):
     def test_data_data(self):
         data = self.hex_read.data_bytes()
         data_list = []
-        for i in (data):
+        for i in data:
             data_list.append(i)
         self.assertEqual(data_list, [(0, 2), (1, 0), (2, 8)])
 
@@ -69,39 +68,49 @@ class SimpleTest(unittest.TestCase):
     def test_datalen_error(self):
         self.assertRaises(HexError, Hex(":ggg").datalen)
 
+class SecondTest(unittest.TestCase):
+
     def test_count_error(self):
         string = io.BytesIO(b":03000000")
         m_open = Mock(return_value=string)
+        string.name = ''
         with patch('builtins.open', m_open):
-            self.hex_read = HexFile('')
-        string.name = Mock()
-        string.name.return_value = "test"
-        self.assertRaises(HexError, self.hex_read.count_data_bytes)
+            hex_read = HexFile('')
+        self.assertRaises(HexError, hex_read.count_data_bytes)
 
     def test_file_error(self):
         string = io.BytesIO(b":03000001020008F3")
         m_open = Mock(return_value=string)
         with patch('builtins.open', m_open):
-            self.hex_read = HexFile('')
-        self.assertRaises(StopIteration, self.hex_read.__next__)
+            hex_read = HexFile('')
+        self.assertRaises(StopIteration, next, hex_read)
 
     def test_block_error(self):
         string = io.BytesIO(b":03gggg00020008F3")
         m_open = Mock(return_value=string)
+        string.name = ''
         with patch('builtins.open', m_open):
-            self.hex_read = HexFile('')
-        string.name = Mock()
-        string.name.return_value = "test"
-        self.assertRaises(HexError, self.hex_read.used_blocks, [(0000, 1111)])
+            hex_read = HexFile('')
+        self.assertRaises(HexError, hex_read.used_blocks, [(0000, 1111)])
 
     def test_block_data_error(self):
         string = io.BytesIO(b":03000000020008F3")
         m_open = Mock(return_value=string)
+        string.name = ''
         with patch('builtins.open', m_open):
-            self.hex_read = HexFile('')
-        string.name = Mock()
-        string.name.return_value = "test"
-        self.assertRaises(HexError, self.hex_read.used_blocks, [(-111, -222)])
+            hex_read = HexFile('')
+        self.assertRaises(HexError, hex_read.used_blocks, [(-111, -222)])
+
+
+    def test_data_bytes_error(self):
+        string = io.BytesIO(b":03000000")
+        m_open = Mock(return_value=string)
+        string.name = ''
+        with patch('builtins.open', m_open):
+            hex_read = HexFile('')
+        self.assertRaises(HexError, next, hex_read.data_bytes())
+
+
 
 if __name__ == '__main__':
     unittest.main()
