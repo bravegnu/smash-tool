@@ -5,7 +5,6 @@ from smashlib.micro import Micro
 from smashlib.micro import  HexDispData, HexBlankCheck, ProtoError
 from smashlib.micro import IspChecksumError, IspProgError, IspTimeoutError
 
-
 class HexTestCase(unittest.TestCase):
 
     def test_dispdata(self):
@@ -30,12 +29,13 @@ class HexTestCase(unittest.TestCase):
         self.assertRaisesRegex(ValueError, "check end address 0x43266 out of range",
                                HexBlankCheck, 0x5432, 0x43266)
 
-class MockTestCase(unittest.TestCase):
+class MicroTestCase(unittest.TestCase):
+
     def setUp(self):
         self.serial = Mock()
         self.micro_obj = Micro("P89V51RD2", 12, self.serial)
 
-    def data(self):
+    def file_obj(self):
         string = io.BytesIO(b":0300610002000397\n:0300610002000397")
         m_open = Mock(return_value=string)
         return m_open
@@ -100,7 +100,6 @@ class MockTestCase(unittest.TestCase):
         data = [b'0x0001=0E', b''] * 8
         self.micro_obj.serial.read_timeo.side_effect = data
         self.assertRaises(ProtoError, lambda: self.micro_obj[0x0000])
-
 
 if __name__ == '__main__':
     unittest.main()
