@@ -52,14 +52,14 @@ class MicroTestCase(unittest.TestCase):
 
     def test_program_file(self):
         self.serial.wait_for.return_value = b"."
-        with patch('builtins.open', self.data()):
+        with patch('builtins.open', self.file_obj()):
             self.micro_obj.prog_file("", Mock())
         self.assertEqual(self.micro_obj.serial.write.called, True)
         self.assertEqual(self.micro_obj.serial.wait_for.called, True)
 
     def test_send_cmd_checksum(self):
         self.serial.wait_for.return_value = b"X"
-        with patch('builtins.open', self.data()):
+        with patch('builtins.open', self.file_obj()):
             self.assertRaises(IspChecksumError, self.micro_obj.prog_file, "")
 
     def test_send_cmd_progem_error(self):
@@ -67,11 +67,12 @@ class MicroTestCase(unittest.TestCase):
         string = io.BytesIO(b":03000000020008")
         m_open = Mock(return_value=string)
         with patch('builtins.open', m_open):
-            self.assertRaises(IspProgError, self.micro_obj.prog_file, "")   
+            self.assertRaises(IspProgError, self.micro_obj.prog_file, "")
+
     def test_send_cmd_progem_error_3(self):
         self.serial.wait_for.return_value = b"P"
         string = io.BytesIO(b":03000000020008")
-        m_open = Mock(return_value=string)        
+        m_open = Mock(return_value=string)
         with patch('builtins.open', m_open):
             self.assertRaises(IspProgError, self.micro_obj.prog_file, "")
 
@@ -85,7 +86,7 @@ class MicroTestCase(unittest.TestCase):
         data = [b'0x0000', b''] * 8
         self.micro_obj.serial.read_timeo.side_effect = data
         self.assertRaises(ProtoError, lambda: self.micro_obj[0xffff])
-    
+
     def test__update_cache_with_line_addr_error(self):
         data = [b'0xghgj=pp', b''] * 8
         self.micro_obj.serial.read_timeo.side_effect = data
@@ -103,4 +104,3 @@ class MicroTestCase(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

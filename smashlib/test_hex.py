@@ -11,7 +11,9 @@ class HexTest(unittest.TestCase):
         self.m_open = Mock(return_value=string)
 
     def test_checksum(self):
-        self.assertEqual(self.hex_data.append_checksum(b":03000000020008"), b":03000000020008f3")
+        expected_value = b":03000000020008f3"
+        result = self.hex_data.append_checksum(b":03000000020008")
+        self.assertEqual(result, expected_value)
 
     def test_get_type(self):
         self.assertEqual(self.hex_data.get_type(), b"00")
@@ -26,48 +28,57 @@ class HexTest(unittest.TestCase):
         self.assertEqual(self.hex_data.addr(), 0000)
 
     def test_data(self):
-        self.assertEqual(self.hex_data.data(), (2, 0, 8))
+        expected_value = (2, 0, 8)
+        result = self.hex_data.data()
+        self.assertEqual(result, expected_value)
 
     def test_datalen(self):
         self.assertEqual(self.hex_data.datalen(), 3)
 
     def test_get_hex(self):
-        self.assertEqual(self.hex_data.get_hex(), b":03000000020008")
+        expected_value = b":03000000020008"
+        self.assertEqual(self.hex_data.get_hex(), expected_value)
 
     def test__bytes__(self):
-        self.assertEqual(self.hex_data.__bytes__(), b":03000000020008")
+        expected_value = b":03000000020008"
+        self.assertEqual(self.hex_data.__bytes__(), expected_value)
 
     def test_block_from_addr(self):
+        expected_value = 0
+        addr = 1010
+        addr_range = [(0000, 1111)]
         with patch('builtins.open', self.m_open):
-            self.hex_read = HexFile('')
-        self.assertEqual(self.hex_read.block_from_addr(1010, [(0000, 1111)]), 0)
+            hex_read = HexFile('')
+        result = hex_read.block_from_addr(addr, addr_range)
+        self.assertEqual(result, expected_value)
 
     def test_iter(self):
         with patch('builtins.open', self.m_open):
-            self.hex_read = HexFile('')
-        self.assertEqual(self.hex_read.rewind(), None)
+            hex_read = HexFile('')
+        self.assertEqual(hex_read.rewind(), None)
 
     def test_data_bytes(self):
         with patch('builtins.open', self.m_open):
-            self.hex_read = HexFile('')
-        self.assertEqual(self.hex_read.count_data_bytes(), 3)
+            hex_read = HexFile('')
+        self.assertEqual(hex_read.count_data_bytes(), 3)
 
     def test_data_data(self):
-        data = self.hex_read.data_bytes()
-        data_list = []
-        for i in data:
-            data_list.append(i)
-        self.assertEqual(data_list, [(0, 2), (1, 0), (2, 8)])
+        expected_value = [(0, 2), (1, 0), (2, 8)]
+        with patch('builtins.open', self.m_open):
+            hex_read = HexFile('')
+        data = hex_read.data_bytes()
+        self.assertEqual(list(data), expected_value)
 
     def test_used_blocks(self):
+        addr_range = [(0000, 1111)]
         with patch('builtins.open', self.m_open):
-            self.hex_read = HexFile('')
-        self.assertEqual(self.hex_read.used_blocks([(0000, 1111)]), [0])
+            hex_read = HexFile('')
+        result = hex_read.used_blocks(addr_range)
+        self.assertEqual(result, [0])
 
     def test_hex_error(self):
-        with patch('builtins.open', self.m_open):
-            self.hex_read = HexFile('')
-        self.assertRaises(HexError, self.hex_data.append_checksum, 'N/A')
+        result = self.hex_data.append_checksum
+        self.assertRaises(HexError, result, 'N/A')
 
     def test_hexfile_error(self):
         self.assertRaises(HexError, Hex(":dfgh").data)
@@ -99,18 +110,19 @@ class HexfileTest(unittest.TestCase):
         string = io.BytesIO(b":03gggg00020008F3")
         m_open = Mock(return_value=string)
         string.name = ''
+        expected_value = [(0000, 1111)]
         with patch('builtins.open', m_open):
             hex_read = HexFile('')
-        self.assertRaises(HexError, hex_read.used_blocks, [(0000, 1111)])
+        self.assertRaises(HexError, hex_read.used_blocks, expected_value)
 
     def test_block_data_error(self):
         string = io.BytesIO(b":03000000020008F3")
         m_open = Mock(return_value=string)
         string.name = ''
+        expected_value = [(-111, -222)]
         with patch('builtins.open', m_open):
             hex_read = HexFile('')
-        self.assertRaises(HexError, hex_read.used_blocks, [(-111, -222)])
-
+        self.assertRaises(HexError, hex_read.used_blocks, expected_value)
 
     def test_data_bytes_error(self):
         string = io.BytesIO(b":03000000")
@@ -122,4 +134,3 @@ class HexfileTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
