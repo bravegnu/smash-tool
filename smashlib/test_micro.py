@@ -36,8 +36,8 @@ class MicroTestCase(unittest.TestCase):
         self.micro_obj = Micro("P89V51RD2", 12, self.serial)
 
     def file_obj(self):
-        string = io.BytesIO(b":0300610002000397\n:0300610002000397")
-        m_open = Mock(return_value=string)
+        hex_file = io.BytesIO(b":0300610002000397\n:0300610002000397")
+        m_open = Mock(return_value=hex_file)
         return m_open
 
     def test_sync_baudrate(self):
@@ -64,15 +64,15 @@ class MicroTestCase(unittest.TestCase):
 
     def test_send_cmd_progem_error(self):
         self.serial.wait_for.return_value = b"R"
-        string = io.BytesIO(b":03000000020008")
-        m_open = Mock(return_value=string)
+        hex_file = io.BytesIO(b":03000000020008")
+        m_open = Mock(return_value=hex_file)
         with patch('builtins.open', m_open):
             self.assertRaises(IspProgError, self.micro_obj.prog_file, "")
 
     def test_send_cmd_progem_error_3(self):
         self.serial.wait_for.return_value = b"P"
-        string = io.BytesIO(b":03000000020008")
-        m_open = Mock(return_value=string)
+        hex_file = io.BytesIO(b":03000000020008")
+        m_open = Mock(return_value=hex_file)
         with patch('builtins.open', m_open):
             self.assertRaises(IspProgError, self.micro_obj.prog_file, "")
 
